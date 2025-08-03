@@ -1,0 +1,207 @@
+package org.github.ypiel.jbudget.controller;
+
+import java.io.FileReader;
+import java.io.IOException;
+import java.net.URL;
+import java.nio.file.DirectoryStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.text.DecimalFormat;
+import java.text.DecimalFormatSymbols;
+import java.text.NumberFormat;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Locale;
+import java.util.ResourceBundle;
+import java.util.Set;
+import java.util.TreeSet;
+
+import javafx.beans.property.ReadOnlyObjectWrapper;
+import javafx.collections.FXCollections;
+import javafx.fxml.FXML;
+import javafx.fxml.Initializable;
+import javafx.scene.control.Alert;
+import javafx.scene.control.ComboBox;
+import javafx.scene.control.Label;
+import javafx.scene.control.TableColumn;
+import javafx.scene.control.TableView;
+
+import com.opencsv.CSVParserBuilder;
+import com.opencsv.CSVReader;
+import com.opencsv.CSVReaderBuilder;
+import com.opencsv.exceptions.CsvValidationException;
+
+import org.github.ypiel.jbudget.model.Account;
+import org.github.ypiel.jbudget.model.AccountCSVFormat;
+import org.github.ypiel.jbudget.model.Entry;
+import org.github.ypiel.jbudget.model.EntryCategory;
+
+public class MainController implements Initializable {
+    @FXML
+    private TableView<Entry> transactionTable;
+    @FXML
+    private ComboBox<Account> accountComboBox;
+    @FXML
+    private Label statusLabel;
+
+    @FXML
+    private TableColumn<Entry, Account> accountColumn;
+    @FXML
+    private TableColumn<Entry, LocalDate> dateOperationColumn;
+    @FXML
+    private TableColumn<Entry, LocalDate> dateValueColumn;
+    @FXML
+    private TableColumn<Entry, String> labelColumn;
+    @FXML
+    private TableColumn<Entry, String> descriptionColumn;
+    @FXML
+    private TableColumn<Entry, Double> debitColumn;
+    @FXML
+    private TableColumn<Entry, Double> creditColumn;
+    @FXML
+    private TableColumn<Entry, EntryCategory> categoryColumn;
+
+    private final Set<Account> accounts = new TreeSet<>((a1, a2) -> a1.name().compareToIgnoreCase(a2.name()));
+    private final DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+    private final Path baseDirectory = Path.of("C:", "YIE", "tmp", "jbudget");
+
+    @Override
+    public void initialize(URL location, ResourceBundle resources) {
+        initializeColumns();
+        initializeAccounts();
+        accountComboBox.setItems(FXCollections.observableArrayList(accounts));
+        statusLabel.setText("Ready - Select an account and load transactions");
+    }
+
+    private void initializeColumns() {
+        accountColumn.setCellValueFactory(
+                cellData -> new ReadOnlyObjectWrapper<>(cellData.getValue().account())
+        );
+        dateOperationColumn.setCellValueFactory(
+                cellData -> new ReadOnlyObjectWrapper<>(cellData.getValue().dateOperation())
+        );
+        dateValueColumn.setCellValueFactory(
+                cellData -> new ReadOnlyObjectWrapper<>(cellData.getValue().dateValue())
+        );
+        labelColumn.setCellValueFactory(
+                cellData -> new ReadOnlyObjectWrapper<>(cellData.getValue().label())
+        );
+        descriptionColumn.setCellValueFactory(
+                cellData -> new ReadOnlyObjectWrapper<>(cellData.getValue().description())
+        );
+        debitColumn.setCellValueFactory(
+                cellData -> new ReadOnlyObjectWrapper<>(cellData.getValue().debit())
+        );
+        creditColumn.setCellValueFactory(
+                cellData -> new ReadOnlyObjectWrapper<>(cellData.getValue().credit())
+        );
+        categoryColumn.setCellValueFactory(
+                cellData -> new ReadOnlyObjectWrapper<>(cellData.getValue().category())
+        );
+    }
+
+    private void initializeAccounts() {
+        DecimalFormatSymbols symbols = new DecimalFormatSymbols(Locale.FRENCH);
+        symbols.setDecimalSeparator(','); // Force la virgule comme séparateur décimal
+        //symbols.setGroupingSeparator(' '); // Optionnel : séparateur de milliers
+        DecimalFormat df = new DecimalFormat("#0.00", symbols);
+        df.setParseBigDecimal(true); // Pour une meilleure précision
+
+        // Initialize with some default accounts
+        accounts.add(new Account("MyBank", "CCFChequePerso", "12345", 0.00,
+                new AccountCSVFormat(0, 1, 2, 3, 4, "dd/MM/yyyy", "dd/MM/yyyy", df, ";")));
+        accounts.add(new Account("MyBank", "Savings Account", "SAV456", 5000.00, new AccountCSVFormat(0, 1, 2, 3, 4, "dd/MM/yyyy", "dd/MM/yyyy", df, ";")));
+    }
+
+    @FXML
+    private void handleLoadTransactions() {
+        Account selectedAccount = accountComboBox.getSelectionModel().getSelectedItem();
+        if (selectedAccount == null) {
+            showAlert("Warning", "Please select an account first");
+            return;
+        }
+
+        try {
+            Path accountPath = baseDirectory.resolve(selectedAccount.name());
+            if (!Files.exists(accountPath)) {
+                statusLabel.setText("No transaction directory found for this account");
+                return;
+            }
+
+            List<Entry> entries = new ArrayList<>();
+            AccountCSVFormat format = selectedAccount.csvFormat();
+
+            try (DirectoryStream<Path> directoryStream = Files.newDirectoryStream(accountPath, "*.csv")) {
+                for (Path file : directoryStream) {
+                    entries.addAll(parseCSVFile(file, selectedAccount, format));
+                }
+            }
+
+            transactionTable.getItems().setAll(entries);
+            statusLabel.setText(String.format("Loaded %d transactions for account %s",
+                    entries.size(), selectedAccount.name()));
+        } catch (IOException | CsvValidationException e) {
+            showAlert("Error", "Failed to load transactions: " + e.getMessage());
+        }
+    }
+
+    private List<Entry> parseCSVFile(Path file, Account account, AccountCSVFormat format)
+            throws IOException, CsvValidationException {
+        List<Entry> entries = new ArrayList<>();
+
+        try (CSVReader reader = new CSVReaderBuilder(new FileReader(file.toFile()))
+                .withSkipLines(1) // Skip header
+                .withCSVParser(new CSVParserBuilder()
+                        .withSeparator(format.delimiter().charAt(0))
+                        .build())
+                .build()) {
+
+            String[] line;
+            while ((line = reader.readNext()) != null) {
+                try {
+                    LocalDate dateOperation = LocalDate.parse(line[format.dateOperationIndex()],
+                            DateTimeFormatter.ofPattern(format.dateOperationFormat()));
+                    LocalDate dateValue = LocalDate.parse(line[format.dateValueIndex()],
+                            DateTimeFormatter.ofPattern(format.dateValueFormat()));
+
+                    String label = line[format.labelIndex()].trim();
+
+                    String sDebit = line[format.debitIndex()].trim();
+                    double debit = 0;
+                    if (!sDebit.isEmpty()) {
+                        debit = format.decimalFormat().parse(sDebit).doubleValue();
+                    }
+
+                    String sCredit = line[format.creditIndex()].trim();
+                    double credit = 0;
+                    if (!sCredit.isEmpty()) {
+                        credit = format.decimalFormat().parse(sCredit).doubleValue();
+                    }
+
+                    entries.add(new Entry(account, dateOperation, dateValue, label,
+                            "", debit, credit, EntryCategory.MISC));
+                } catch (Exception e) {
+                    System.err.println("Error parsing line: " + Arrays.toString(line));
+                    System.err.println("Error: " + e.getMessage());
+                }
+            }
+        }
+
+        return entries;
+    }
+
+    private void showAlert(String title, String message) {
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.setTitle(title);
+        alert.setHeaderText(null);
+        alert.setContentText(message);
+        alert.showAndWait();
+    }
+
+    public MainController() {
+        super();
+    }
+}

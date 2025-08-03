@@ -1,0 +1,8 @@
+module org.github.ypiel.jbudget {
+    requires javafx.controls;
+    requires javafx.fxml;
+
+    opens org.github.ypiel.jbudget to javafx.fxml;
+    exports org.github.ypiel.jbudget;
+    exports org.github.ypiel.jbudget.model;
+}

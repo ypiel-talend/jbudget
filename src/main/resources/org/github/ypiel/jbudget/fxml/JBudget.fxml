@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.cell.PropertyValueFactory?>
+<?import javafx.scene.paint.Color?>
+
+<VBox xmlns="http://javafx.com/javafx/20"
+      xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="org.github.ypiel.jbudget.controller.MainController"
+      spacing="10">
+    <padding>
+        <Insets top="10" right="10" bottom="10" left="10"/>
+    </padding>
+
+    <HBox spacing="10" alignment="CENTER_LEFT">
+        <Label text="Bank Transactions" style="-fx-font-size: 20px; -fx-font-weight: bold;"/>
+    </HBox>
+
+    <HBox spacing="10" alignment="CENTER_LEFT">
+        <Label text="Account:"/>
+        <ComboBox fx:id="accountComboBox" promptText="Select an account"/>
+        <Button text="Load Transactions" onAction="#handleLoadTransactions"/>
+    </HBox>
+
+    <Label fx:id="statusLabel" style="-fx-font-style: italic;"/>
+
+    <TableView fx:id="transactionTable">
+        <columns>
+            <TableColumn fx:id="accountColumn" text="Account" prefWidth="150" />
+            <TableColumn fx:id="dateOperationColumn" text="Date Operation" />
+            <TableColumn fx:id="dateValueColumn" text="Date Value" />
+            <TableColumn fx:id="labelColumn" text="Label" />
+            <TableColumn fx:id="descriptionColumn" text="Description" />
+            <TableColumn fx:id="debitColumn" text="Debit" />
+            <TableColumn fx:id="creditColumn" text="Credit" />
+            <TableColumn fx:id="categoryColumn" text="Category" />
+        </columns>
+    </TableView>
+</VBox>
