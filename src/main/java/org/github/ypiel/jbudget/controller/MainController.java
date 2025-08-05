@@ -1,5 +1,6 @@
 package org.github.ypiel.jbudget.controller;
 
+import java.awt.event.ActionEvent;
 import java.io.FileReader;
 import java.io.IOException;
 import java.net.URL;
@@ -23,12 +24,16 @@ import javafx.collections.FXCollections;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
 import javafx.scene.control.Alert;
+import javafx.scene.control.CheckBox;
 import javafx.scene.control.ComboBox;
+import javafx.scene.control.DatePicker;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
 import javafx.scene.control.TableCell;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
+import javafx.scene.control.TextField;
+import javafx.scene.layout.HBox;
 
 import com.opencsv.CSVParserBuilder;
 import com.opencsv.CSVReader;
@@ -41,6 +46,19 @@ import org.github.ypiel.jbudget.model.Entry;
 import org.github.ypiel.jbudget.model.EntryCategory;
 
 public class MainController implements Initializable {
+
+    @FXML
+    public TextField tfSearchLabel;
+    @FXML
+    public DatePicker dpFrom;
+    @FXML
+    public DatePicker dpTo;
+    @FXML
+    public CheckBox cbDateRange;
+    @FXML
+    public HBox dateRangeBox;
+    @FXML
+    public ComboBox<EntryCategory> cbCategory;
     @FXML
     private TableView<Entry> transactionTable;
     @FXML
@@ -65,6 +83,7 @@ public class MainController implements Initializable {
     @FXML
     private TableColumn<Entry, EntryCategory> categoryColumn;
 
+    private final List<Entry> allEntries = new ArrayList<>();
     private final Set<Account> accounts = new TreeSet<>((a1, a2) -> a1.name().compareToIgnoreCase(a2.name()));
     private final DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
     private final Path baseDirectory = Path.of("C:", "YIE", "tmp", "jbudget");
@@ -74,8 +93,15 @@ public class MainController implements Initializable {
         initializeColumns();
         initializeAccounts();
         initializeAccountCombobox();
+        initializeSearchPanel();
 
         statusLabel.setText("Ready - Select an account and load transactions");
+    }
+
+    private void initializeSearchPanel() {
+        dateRangeBox.visibleProperty().bind(cbDateRange.selectedProperty());
+        cbCategory.getItems().setAll(EntryCategory.values());
+        cbCategory.getSelectionModel().select(EntryCategory.ALL);
     }
 
     private void initializeAccountCombobox() {
@@ -160,15 +186,34 @@ public class MainController implements Initializable {
 
     private void initializeAccounts() {
         DecimalFormatSymbols symbols = new DecimalFormatSymbols(Locale.FRENCH);
-        symbols.setDecimalSeparator(','); // Force la virgule comme séparateur décimal
-        //symbols.setGroupingSeparator(' '); // Optionnel : séparateur de milliers
+        symbols.setDecimalSeparator(',');
         DecimalFormat df = new DecimalFormat("#0.00", symbols);
-        df.setParseBigDecimal(true); // Pour une meilleure précision
+        df.setParseBigDecimal(true);
 
         // Initialize with some default accounts
         accounts.add(new Account("MyBank", "CCFChequePerso", "12345", 0.00,
                 new AccountCSVFormat(0, 1, 2, 3, 4, "dd/MM/yyyy", "dd/MM/yyyy", df, ";")));
         accounts.add(new Account("MyBank", "Savings Account", "SAV456", 5000.00, new AccountCSVFormat(0, 1, 2, 3, 4, "dd/MM/yyyy", "dd/MM/yyyy", df, ";")));
+    }
+
+    @FXML
+    private void handleSearch(){
+        String searchLabel = tfSearchLabel.getText().trim();
+        EntryCategory category = cbCategory.getSelectionModel().getSelectedItem();
+        LocalDate fromDate = dpFrom.getValue();
+        LocalDate toDate = dpTo.getValue();
+
+        List<Entry> filteredEntries = this.allEntries.stream()
+                .filter(entry -> searchLabel.isEmpty() ||
+                        entry.label().toLowerCase().contains(searchLabel.toLowerCase()))
+                .filter(entry -> category == EntryCategory.ALL || category == entry.category())
+                .filter(entry -> !cbDateRange.isSelected() || ((fromDate == null || !entry.dateOperation().isBefore(fromDate)) &&
+                        (toDate == null || !entry.dateOperation().isAfter(toDate))))
+                .toList();
+
+        transactionTable.getItems().setAll(filteredEntries);
+        statusLabel.setText(String.format("Found %d / %d transactions matching criteria", filteredEntries.size(), allEntries.size()));
+
     }
 
     @FXML
@@ -186,18 +231,19 @@ public class MainController implements Initializable {
                 return;
             }
 
-            List<Entry> entries = new ArrayList<>();
+
             AccountCSVFormat format = selectedAccount.csvFormat();
 
+            allEntries.clear();
             try (DirectoryStream<Path> directoryStream = Files.newDirectoryStream(accountPath, "*.csv")) {
                 for (Path file : directoryStream) {
-                    entries.addAll(parseCSVFile(file, selectedAccount, format));
+                    allEntries.addAll(parseCSVFile(file, selectedAccount, format));
                 }
             }
 
-            transactionTable.getItems().setAll(entries);
+            transactionTable.getItems().setAll(allEntries);
             statusLabel.setText(String.format("Loaded %d transactions for account %s",
-                    entries.size(), selectedAccount.name()));
+                    allEntries.size(), selectedAccount.name()));
         } catch (IOException | CsvValidationException e) {
             showAlert("Error", "Failed to load transactions: " + e.getMessage());
         }

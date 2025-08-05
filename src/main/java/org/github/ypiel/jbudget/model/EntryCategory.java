@@ -1,7 +1,7 @@
 package org.github.ypiel.jbudget.model;
 
 public enum EntryCategory {
-
+    ALL,
     AMAZON,
     BANK_FEES,
     CARE_HEALTH,
