@@ -8,7 +8,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
-import java.text.NumberFormat;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -26,6 +25,8 @@ import javafx.fxml.Initializable;
 import javafx.scene.control.Alert;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
+import javafx.scene.control.ListCell;
+import javafx.scene.control.TableCell;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 
@@ -72,14 +73,55 @@ public class MainController implements Initializable {
     public void initialize(URL location, ResourceBundle resources) {
         initializeColumns();
         initializeAccounts();
-        accountComboBox.setItems(FXCollections.observableArrayList(accounts));
+        initializeAccountCombobox();
+
         statusLabel.setText("Ready - Select an account and load transactions");
+    }
+
+    private void initializeAccountCombobox() {
+        accountComboBox.setCellFactory(lv -> new ListCell<Account>() {
+            @Override
+            protected void updateItem(Account account, boolean empty) {
+                super.updateItem(account, empty);
+                if (empty || account == null) {
+                    setText(null);
+                } else {
+                    setText(account.toLabel());
+                }
+            }
+        });
+
+        accountComboBox.setButtonCell(new ListCell<Account>() {
+            @Override
+            protected void updateItem(Account account, boolean empty) {
+                super.updateItem(account, empty);
+                if (empty || account == null) {
+                    setText(null);
+                } else {
+                    setText(account.toLabel());
+                }
+            }
+        });
+
+        accountComboBox.setItems(FXCollections.observableArrayList(accounts));
     }
 
     private void initializeColumns() {
         accountColumn.setCellValueFactory(
                 cellData -> new ReadOnlyObjectWrapper<>(cellData.getValue().account())
         );
+        accountColumn.setCellFactory(column -> new TableCell<Entry, Account>() {
+            @Override
+            protected void updateItem(Account account, boolean empty) {
+                super.updateItem(account, empty);
+                if (empty || account == null) {
+                    setText(null);
+                } else {
+                    setText(account.toLabel());
+                }
+            }
+        });
+
         dateOperationColumn.setCellValueFactory(
                 cellData -> new ReadOnlyObjectWrapper<>(cellData.getValue().dateOperation())
         );
@@ -100,6 +142,19 @@ public class MainController implements Initializable {
         );
         categoryColumn.setCellValueFactory(
                 cellData -> new ReadOnlyObjectWrapper<>(cellData.getValue().category())
+        );
+
+        // Make description column take remaining space
+        descriptionColumn.prefWidthProperty().bind(
+                transactionTable.widthProperty()
+                        .subtract(accountColumn.widthProperty())
+                        .subtract(dateOperationColumn.widthProperty())
+                        .subtract(dateValueColumn.widthProperty())
+                        .subtract(labelColumn.widthProperty())
+                        .subtract(debitColumn.widthProperty())
+                        .subtract(creditColumn.widthProperty())
+                        .subtract(categoryColumn.widthProperty())
+                        .subtract(20) // account for scrollbar and borders
         );
     }
 

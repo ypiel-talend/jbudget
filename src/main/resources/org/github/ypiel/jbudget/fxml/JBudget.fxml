@@ -31,11 +31,11 @@
             <TableColumn fx:id="accountColumn" text="Account" prefWidth="150" />
             <TableColumn fx:id="dateOperationColumn" text="Date Operation" />
             <TableColumn fx:id="dateValueColumn" text="Date Value" />
-            <TableColumn fx:id="labelColumn" text="Label" />
-            <TableColumn fx:id="descriptionColumn" text="Description" />
+            <TableColumn fx:id="labelColumn" text="Label" prefWidth="350" />
             <TableColumn fx:id="debitColumn" text="Debit" />
             <TableColumn fx:id="creditColumn" text="Credit" />
             <TableColumn fx:id="categoryColumn" text="Category" />
+            <TableColumn fx:id="descriptionColumn" text="Description" />
         </columns>
     </TableView>
 </VBox>

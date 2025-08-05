@@ -19,4 +19,8 @@ public record Account(String bank, String name, String code, double initialBalan
             throw new IllegalArgumentException("The account CSV format cannot be null");
         }
     }
+
+    public String toLabel() {
+        return String.format("%s (%s)", name, bank);
+    }
 }
