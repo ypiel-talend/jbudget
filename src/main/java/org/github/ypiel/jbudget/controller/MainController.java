@@ -1,6 +1,5 @@
 package org.github.ypiel.jbudget.controller;
 
-import java.awt.event.ActionEvent;
 import java.io.FileReader;
 import java.io.IOException;
 import java.net.URL;
@@ -13,6 +12,7 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.ResourceBundle;
@@ -21,6 +21,7 @@ import java.util.TreeSet;
 
 import javafx.beans.property.ReadOnlyObjectWrapper;
 import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
 import javafx.scene.control.Alert;
@@ -29,6 +30,7 @@ import javafx.scene.control.ComboBox;
 import javafx.scene.control.DatePicker;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
+import javafx.scene.control.SelectionMode;
 import javafx.scene.control.TableCell;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
@@ -60,6 +62,12 @@ public class MainController implements Initializable {
     @FXML
     public ComboBox<EntryCategory> cbCategory;
     @FXML
+    public ComboBox<EntryCategory> cbCategorySetter;
+    @FXML
+    public TextField tfDescriptionSetter;
+    @FXML
+    public CheckBox cbForceDescription;
+    @FXML
     private TableView<Entry> transactionTable;
     @FXML
     private ComboBox<Account> accountComboBox;
@@ -83,17 +91,24 @@ public class MainController implements Initializable {
     @FXML
     private TableColumn<Entry, EntryCategory> categoryColumn;
 
-    private final List<Entry> allEntries = new ArrayList<>();
+    private final Set<Entry> allEntries = new TreeSet<>((e1, e2) -> {
+        int cmp = e1.dateOperation().compareTo(e2.dateOperation());
+        if (cmp == 0) {
+            cmp = e1.label().compareToIgnoreCase(e2.label());
+        }
+        return cmp;
+    });
     private final Set<Account> accounts = new TreeSet<>((a1, a2) -> a1.name().compareToIgnoreCase(a2.name()));
     private final DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
     private final Path baseDirectory = Path.of("C:", "YIE", "tmp", "jbudget");
 
     @Override
     public void initialize(URL location, ResourceBundle resources) {
-        initializeColumns();
+        initializeTableView();
         initializeAccounts();
         initializeAccountCombobox();
         initializeSearchPanel();
+        initializeUpdatePanel();
 
         statusLabel.setText("Ready - Select an account and load transactions");
     }
@@ -102,6 +117,11 @@ public class MainController implements Initializable {
         dateRangeBox.visibleProperty().bind(cbDateRange.selectedProperty());
         cbCategory.getItems().setAll(EntryCategory.values());
         cbCategory.getSelectionModel().select(EntryCategory.ALL);
+    }
+
+    private void initializeUpdatePanel() {
+        cbCategorySetter.getItems().setAll(EntryCategory.values());
+        cbCategorySetter.getSelectionModel().select(EntryCategory.ALL);
     }
 
     private void initializeAccountCombobox() {
@@ -132,7 +152,9 @@ public class MainController implements Initializable {
         accountComboBox.setItems(FXCollections.observableArrayList(accounts));
     }
 
-    private void initializeColumns() {
+    private void initializeTableView() {
+        transactionTable.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
+
         accountColumn.setCellValueFactory(
                 cellData -> new ReadOnlyObjectWrapper<>(cellData.getValue().account())
         );
@@ -197,7 +219,34 @@ public class MainController implements Initializable {
     }
 
     @FXML
-    private void handleSearch(){
+    private void handleUpdate(){
+        final String description = tfDescriptionSetter.getText().trim();
+        final boolean forceDescription = cbForceDescription.isSelected();
+        final EntryCategory category = cbCategorySetter.getSelectionModel().getSelectedItem();
+
+        Collection<Entry> updatedEntries = new ArrayList<>();
+        ObservableList<Entry> entries = transactionTable.getSelectionModel().getSelectedItems();
+        for(Entry e : entries) {
+
+            Entry initialEntry = e; // Keep a reference to the initial entry for debugging
+
+            if (!description.isEmpty() && (forceDescription || e.description().isEmpty())) {
+                e = e.withDescription(description);
+            }
+            if (category != EntryCategory.ALL) {
+                e = e.withCategory(category);
+            }
+
+            updatedEntries.add(e);
+        }
+
+        allEntries.removeAll(entries);
+        allEntries.addAll(updatedEntries);
+        handleSearch();
+    }
+
+    @FXML
+    private void handleSearch() {
         String searchLabel = tfSearchLabel.getText().trim();
         EntryCategory category = cbCategory.getSelectionModel().getSelectedItem();
         LocalDate fromDate = dpFrom.getValue();

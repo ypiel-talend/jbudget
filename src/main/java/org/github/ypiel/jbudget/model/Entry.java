@@ -16,5 +16,12 @@ public record Entry(Account account, LocalDate dateOperation, LocalDate dateValu
 
     }
 
+    public Entry withDescription(String newDescription) {
+        return new Entry(account, dateOperation, dateValue, label, newDescription, debit, credit, category);
+    }
+
+    public Entry withCategory(EntryCategory newCategory) {
+        return new Entry(account, dateOperation, dateValue, label, description, debit, credit, newCategory);
+    }
 
 }
