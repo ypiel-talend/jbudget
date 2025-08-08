@@ -1,6 +1,6 @@
 package org.github.ypiel.jbudget.model;
 
-public record Account(String bank, String name, String code, double initialBalance, AccountCSVFormat csvFormat) {
+public record Account(String bank, String name, String code, double initialBalance, AccountCSVFormat csvFormat) implements Comparable<Account> {
 
     public Account {
         if (bank == null || bank.isBlank()) {
@@ -22,5 +22,18 @@ public record Account(String bank, String name, String code, double initialBalan
 
     public String toLabel() {
         return String.format("%s (%s)", name, bank);
+    }
+
+    @Override
+    public int compareTo(Account o) {
+        int bankComparison = this.bank.compareTo(o.bank);
+        if (bankComparison != 0) {
+            return bankComparison;
+        }
+        int nameComparison = this.name.compareTo(o.name);
+        if (nameComparison != 0) {
+            return nameComparison;
+        }
+        return this.code.compareTo(o.code);
     }
 }

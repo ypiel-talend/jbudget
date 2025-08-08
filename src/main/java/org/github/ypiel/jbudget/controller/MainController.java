@@ -13,8 +13,11 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.ResourceBundle;
 import java.util.Set;
 import java.util.TreeSet;
@@ -22,9 +25,12 @@ import java.util.TreeSet;
 import javafx.beans.property.ReadOnlyObjectWrapper;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
+import javafx.collections.transformation.SortedList;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
 import javafx.scene.control.Alert;
+import javafx.scene.control.Alert.AlertType;
+import javafx.scene.control.ButtonType;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.DatePicker;
@@ -48,6 +54,9 @@ import org.github.ypiel.jbudget.model.Entry;
 import org.github.ypiel.jbudget.model.EntryCategory;
 
 public class MainController implements Initializable {
+
+    private static final Path baseDirectory = Path.of("C:", "YIE", "tmp", "jbudget");
+    private static final int maxUpdateEntriesWithoutConfirmation = 5;
 
     @FXML
     public TextField tfSearchLabel;
@@ -91,16 +100,8 @@ public class MainController implements Initializable {
     @FXML
     private TableColumn<Entry, EntryCategory> categoryColumn;
 
-    private final Set<Entry> allEntries = new TreeSet<>((e1, e2) -> {
-        int cmp = e1.dateOperation().compareTo(e2.dateOperation());
-        if (cmp == 0) {
-            cmp = e1.label().compareToIgnoreCase(e2.label());
-        }
-        return cmp;
-    });
-    private final Set<Account> accounts = new TreeSet<>((a1, a2) -> a1.name().compareToIgnoreCase(a2.name()));
-    private final DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
-    private final Path baseDirectory = Path.of("C:", "YIE", "tmp", "jbudget");
+    private final List<Entry> allEntries = new ArrayList<>();
+    private final Set<Account> accounts = new TreeSet<>();
 
     @Override
     public void initialize(URL location, ResourceBundle resources) {
@@ -226,6 +227,19 @@ public class MainController implements Initializable {
 
         Collection<Entry> updatedEntries = new ArrayList<>();
         ObservableList<Entry> entries = transactionTable.getSelectionModel().getSelectedItems();
+
+        if(entries.size() <= 0){
+            // If no selection, we update all visible entries
+            entries = transactionTable.getItems();
+        }
+
+        if(entries.size() > maxUpdateEntriesWithoutConfirmation){
+            boolean confirmation = askConfirmation("Confirmation", "You are about to update " + entries.size() + " transactions. Do you want to proceed?");
+            if(!confirmation){
+                return;
+            }
+        }
+
         for(Entry e : entries) {
 
             Entry initialEntry = e; // Keep a reference to the initial entry for debugging
@@ -260,7 +274,7 @@ public class MainController implements Initializable {
                         (toDate == null || !entry.dateOperation().isAfter(toDate))))
                 .toList();
 
-        transactionTable.getItems().setAll(filteredEntries);
+        transactionTable.getItems().setAll(filteredEntries.stream().sorted().toList());
         statusLabel.setText(String.format("Found %d / %d transactions matching criteria", filteredEntries.size(), allEntries.size()));
 
     }
@@ -286,7 +300,10 @@ public class MainController implements Initializable {
             allEntries.clear();
             try (DirectoryStream<Path> directoryStream = Files.newDirectoryStream(accountPath, "*.csv")) {
                 for (Path file : directoryStream) {
-                    allEntries.addAll(parseCSVFile(file, selectedAccount, format));
+                    List<Entry> tmpEntries = parseCSVFile(file, selectedAccount, format);
+                    allEntries.addAll(tmpEntries);
+
+
                 }
             }
 
@@ -333,6 +350,7 @@ public class MainController implements Initializable {
 
                     entries.add(new Entry(account, dateOperation, dateValue, label,
                             "", debit, credit, EntryCategory.MISC));
+
                 } catch (Exception e) {
                     System.err.println("Error parsing line: " + Arrays.toString(line));
                     System.err.println("Error: " + e.getMessage());
@@ -340,7 +358,7 @@ public class MainController implements Initializable {
             }
         }
 
-        return entries;
+        return entries.stream().sorted().toList();
     }
 
     private void showAlert(String title, String message) {
@@ -349,6 +367,21 @@ public class MainController implements Initializable {
         alert.setHeaderText(null);
         alert.setContentText(message);
         alert.showAndWait();
+    }
+
+    private boolean askConfirmation(String title, String message) {
+        Alert alert = new Alert(AlertType.CONFIRMATION);
+        alert.setTitle(title);
+        alert.setHeaderText(null);
+        alert.setContentText(message);
+
+        ButtonType yesButton = new ButtonType("Yes");
+        ButtonType noButton = new ButtonType("No");
+        alert.getButtonTypes().setAll(yesButton, noButton);
+
+        Optional<ButtonType> result = alert.showAndWait();
+
+        return result.isPresent() && result.get() == yesButton;
     }
 
     public MainController() {

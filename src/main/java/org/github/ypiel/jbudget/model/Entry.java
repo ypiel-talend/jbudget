@@ -2,10 +2,11 @@ package org.github.ypiel.jbudget.model;
 
 import java.time.LocalDate;
 
-public record Entry(Account account, LocalDate dateOperation, LocalDate dateValue, String label, String description, double debit, double credit, EntryCategory category) {
+public record Entry(Account account, LocalDate dateOperation, LocalDate dateValue, String label, String description,
+                    double debit, double credit, EntryCategory category) implements Comparable<Entry> {
 
     public Entry {
-        if(category == null) {
+        if (category == null) {
             category = EntryCategory.MISC;
         }
 
@@ -22,6 +23,32 @@ public record Entry(Account account, LocalDate dateOperation, LocalDate dateValu
 
     public Entry withCategory(EntryCategory newCategory) {
         return new Entry(account, dateOperation, dateValue, label, description, debit, credit, newCategory);
+    }
+
+    @Override
+    public int compareTo(Entry e) {
+        // Compare by dateOperation (ascending)
+        int cmp = this.dateOperation().compareTo(e.dateOperation());
+        if (cmp != 0) return cmp;
+
+        // Compare by dateValue (ascending)
+        cmp = this.dateValue().compareTo(e.dateValue());
+        if (cmp != 0) return cmp;
+
+        // Compare by label (case-insensitive)
+        cmp = this.label().compareTo(e.label());
+        if (cmp != 0) return cmp;
+
+        // Compare by debit (ascending)
+        cmp = Double.compare(this.debit(), e.debit());
+        if (cmp != 0) return cmp;
+
+        // Compare by credit (ascending)
+        cmp = Double.compare(this.credit(), e.credit());
+        if (cmp != 0) return cmp;
+
+        // Compare by account (if Account implements Comparable)
+        return this.account().compareTo(e.account());
     }
 
 }
