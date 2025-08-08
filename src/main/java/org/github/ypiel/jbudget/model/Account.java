@@ -1,6 +1,6 @@
 package org.github.ypiel.jbudget.model;
 
-public record Account(String bank, String name, String code, double initialBalance, AccountCSVFormat csvFormat) implements Comparable<Account> {
+public record Account(String bank, String name, String code, double initialBalance) implements Comparable<Account> {
 
     public Account {
         if (bank == null || bank.isBlank()) {
@@ -14,9 +14,6 @@ public record Account(String bank, String name, String code, double initialBalan
         }
         if (initialBalance < 0) {
             throw new IllegalArgumentException("Initial balance cannot be negative");
-        }
-        if (csvFormat == null) {
-            throw new IllegalArgumentException("The account CSV format cannot be null");
         }
     }
 

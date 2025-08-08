@@ -79,5 +79,10 @@
             <CheckBox text="Force description:" fx:id="cbForceDescription"/>
             <Button text="Update" onAction="#handleUpdate"/>
         </VBox>
+        <Separator orientation="HORIZONTAL" minHeight="25"/>
+        <HBox alignment="BOTTOM_RIGHT">
+            <Button text="load" onAction="#loadFromJson"/>
+            <Button text="Save" onAction="#handleSave"/>
+        </HBox>
     </VBox>
 </VBox>

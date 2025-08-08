@@ -13,19 +13,19 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.ResourceBundle;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.stream.Collectors;
 
 import javafx.beans.property.ReadOnlyObjectWrapper;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
-import javafx.collections.transformation.SortedList;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
 import javafx.scene.control.Alert;
@@ -57,6 +57,8 @@ public class MainController implements Initializable {
 
     private static final Path baseDirectory = Path.of("C:", "YIE", "tmp", "jbudget");
     private static final int maxUpdateEntriesWithoutConfirmation = 5;
+    private static final Path OUTPUT_FOLDER = Path.of("C:", "YIE", "tmp", "jbudget", "output");
+    private static final Path OUTPUT_FILE =OUTPUT_FOLDER.resolve("jbudget.json");
 
     @FXML
     public TextField tfSearchLabel;
@@ -102,6 +104,7 @@ public class MainController implements Initializable {
 
     private final List<Entry> allEntries = new ArrayList<>();
     private final Set<Account> accounts = new TreeSet<>();
+    private final Map<Account, AccountCSVFormat> csvFormatMap = new HashMap<>();
 
     @Override
     public void initialize(URL location, ResourceBundle resources) {
@@ -214,13 +217,22 @@ public class MainController implements Initializable {
         df.setParseBigDecimal(true);
 
         // Initialize with some default accounts
-        accounts.add(new Account("MyBank", "CCFChequePerso", "12345", 0.00,
-                new AccountCSVFormat(0, 1, 2, 3, 4, "dd/MM/yyyy", "dd/MM/yyyy", df, ";")));
-        accounts.add(new Account("MyBank", "Savings Account", "SAV456", 5000.00, new AccountCSVFormat(0, 1, 2, 3, 4, "dd/MM/yyyy", "dd/MM/yyyy", df, ";")));
+
+        Account ccfChequePerso = new Account("MyBank", "CCFChequePerso", "12345", 0.00);
+        AccountCSVFormat ccfChequePersoFormat = new AccountCSVFormat(0, 1, 2,
+                3, 4, "dd/MM/yyyy", "dd/MM/yyyy", df, ";");
+        accounts.add(ccfChequePerso);
+        csvFormatMap.put(ccfChequePerso, ccfChequePersoFormat);
+
+        Account anotherAccount = new Account("MyBank", "Savings Account", "SAV456", 5000.00);
+        AccountCSVFormat anotherAccountFormat = new AccountCSVFormat(0, 1, 2,
+                3, 4, "dd/MM/yyyy", "dd/MM/yyyy", df, ";");
+        accounts.add(anotherAccount);
+        csvFormatMap.put(anotherAccount, anotherAccountFormat);
     }
 
     @FXML
-    private void handleUpdate(){
+    private void handleUpdate() {
         final String description = tfDescriptionSetter.getText().trim();
         final boolean forceDescription = cbForceDescription.isSelected();
         final EntryCategory category = cbCategorySetter.getSelectionModel().getSelectedItem();
@@ -228,19 +240,19 @@ public class MainController implements Initializable {
         Collection<Entry> updatedEntries = new ArrayList<>();
         ObservableList<Entry> entries = transactionTable.getSelectionModel().getSelectedItems();
 
-        if(entries.size() <= 0){
+        if (entries.size() <= 0) {
             // If no selection, we update all visible entries
             entries = transactionTable.getItems();
         }
 
-        if(entries.size() > maxUpdateEntriesWithoutConfirmation){
+        if (entries.size() > maxUpdateEntriesWithoutConfirmation) {
             boolean confirmation = askConfirmation("Confirmation", "You are about to update " + entries.size() + " transactions. Do you want to proceed?");
-            if(!confirmation){
+            if (!confirmation) {
                 return;
             }
         }
 
-        for(Entry e : entries) {
+        for (Entry e : entries) {
 
             Entry initialEntry = e; // Keep a reference to the initial entry for debugging
 
@@ -294,8 +306,11 @@ public class MainController implements Initializable {
                 return;
             }
 
-
-            AccountCSVFormat format = selectedAccount.csvFormat();
+            AccountCSVFormat format = csvFormatMap.get(selectedAccount);
+            if(format == null){
+                showAlert("Wrong configuration",
+                        String.format("No CSV format for account %s.", selectedAccount.toLabel(), true));
+            }
 
             allEntries.clear();
             try (DirectoryStream<Path> directoryStream = Files.newDirectoryStream(accountPath, "*.csv")) {
@@ -362,11 +377,18 @@ public class MainController implements Initializable {
     }
 
     private void showAlert(String title, String message) {
-        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        showAlert(title, message, false);
+    }
+    private void showAlert(String title, String message, boolean shutdown) {
+        Alert alert = new Alert(shutdown ? AlertType.ERROR : AlertType.INFORMATION);
         alert.setTitle(title);
         alert.setHeaderText(null);
         alert.setContentText(message);
         alert.showAndWait();
+
+        if(shutdown){
+            System.exit(1);
+        }
     }
 
     private boolean askConfirmation(String title, String message) {
@@ -387,4 +409,36 @@ public class MainController implements Initializable {
     public MainController() {
         super();
     }
+
+    public void handleSave() {
+        try {
+            if(!Files.isDirectory(OUTPUT_FOLDER)) {
+                Files.createDirectories(OUTPUT_FOLDER);
+            }
+            EntryJsonController.saveEntriesToFile(
+                    this.allEntries,
+                    OUTPUT_FILE.toFile().getAbsolutePath());
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public void loadFromJson(){
+        try {
+
+            Map<Account, Account> accountMap = accounts.stream()
+                    .collect(Collectors.toMap(e -> e, e -> e));
+
+            List<Entry> entries = EntryJsonController.loadEntriesFromFile(OUTPUT_FILE.toFile().getAbsolutePath());
+            allEntries.clear();
+            allEntries.addAll(entries.stream()
+                    .map(e -> e.withAccount(accountMap.get(e.account()))).sorted().toList()); // Only 1 instance for each account
+            transactionTable.getItems().setAll(allEntries);
+            statusLabel.setText(String.format("Loaded %d transactions from file %s",
+                    allEntries.size(), OUTPUT_FILE));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
 }
