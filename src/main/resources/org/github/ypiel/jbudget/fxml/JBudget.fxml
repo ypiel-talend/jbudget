@@ -12,77 +12,118 @@
 <?import javafx.scene.layout.HBox?>
 <?import javafx.scene.layout.VBox?>
 <?import javafx.scene.control.Separator?>
-<VBox xmlns="http://javafx.com/javafx/20"
-      xmlns:fx="http://javafx.com/fxml/1"
-      fx:controller="org.github.ypiel.jbudget.controller.MainController"
-      spacing="10">
-    <padding>
-        <Insets top="10" right="10" bottom="10" left="10"/>
-    </padding>
+<?import javafx.scene.control.TabPane?>
+<?import javafx.scene.control.Tab?>
+<?import javafx.scene.chart.BarChart?>
+<?import javafx.scene.chart.LineChart?>
+<?import javafx.scene.chart.CategoryAxis?>
+<?import javafx.scene.chart.NumberAxis?>
 
-    <HBox spacing="10" alignment="CENTER_LEFT">
-        <Label text="Bank Transactions" style="-fx-font-size: 20px; -fx-font-weight: bold;"/>
-    </HBox>
+<TabPane xmlns="http://javafx.com/javafx/8.0.171" xmlns:fx="http://javafx.com/fxml/1"
+         fx:controller="org.github.ypiel.jbudget.controller.MainController">
+    <!-- Premier onglet -->
+    <tabs>
+        <Tab text="Manage entries">
+            <VBox xmlns="http://javafx.com/javafx/20"
+                  xmlns:fx="http://javafx.com/fxml/1"
+                  spacing="10">
+                <padding>
+                    <Insets top="10" right="10" bottom="10" left="10"/>
+                </padding>
 
-    <HBox spacing="10" alignment="CENTER_LEFT">
-        <Label text="Account:"/>
-        <ComboBox fx:id="accountComboBox" promptText="Select an account"/>
-        <Button text="Load Transactions" onAction="#handleLoadTransactions"/>
-    </HBox>
-
-    <Label fx:id="statusLabel" style="-fx-font-style: italic;"/>
-
-    <TableView fx:id="transactionTable">
-        <columns>
-            <TableColumn fx:id="accountColumn" text="Account" prefWidth="150"/>
-            <TableColumn fx:id="dateOperationColumn" text="Date Operation"/>
-            <TableColumn fx:id="dateValueColumn" text="Date Value"/>
-            <TableColumn fx:id="labelColumn" text="Label" prefWidth="350"/>
-            <TableColumn fx:id="debitColumn" text="Debit"/>
-            <TableColumn fx:id="creditColumn" text="Credit"/>
-            <TableColumn fx:id="categoryColumn" text="Category"/>
-            <TableColumn fx:id="descriptionColumn" text="Description"/>
-        </columns>
-    </TableView>
-
-    <VBox>
-        <VBox>
-            <HBox spacing="20">
-                <HBox spacing="10">
-                    <Label text="Search in labels:"/>
-                    <TextField fx:id="tfSearchLabel"/>
+                <HBox spacing="10" alignment="CENTER_LEFT">
+                    <Label text="Bank Transactions" style="-fx-font-size: 20px; -fx-font-weight: bold;"/>
                 </HBox>
-                <HBox spacing="10">
-                    <Label text="Category:"/>
-                    <ComboBox fx:id="cbCategory" promptText="Select category"/>
+
+                <HBox spacing="10" alignment="CENTER_LEFT">
+                    <Label text="Account:"/>
+                    <ComboBox fx:id="accountComboBox" promptText="Select an account"/>
+                    <Button text="Load new transactions" onAction="#handleLoadTransactions"/>
                 </HBox>
-                <HBox spacing="10">
-                    <CheckBox text="With date range" fx:id="cbDateRange"/>
-                    <HBox fx:id="dateRangeBox" spacing="10">
-                        <Label text=" From:"/>
-                        <DatePicker fx:id="dpFrom"/>
-                        <Label text=" to:"/>
-                        <DatePicker fx:id="dpTo"/>
+
+                <Label fx:id="statusLabel" style="-fx-font-style: italic;"/>
+
+                <TableView fx:id="transactionTable">
+                    <columns>
+                        <TableColumn fx:id="accountColumn" text="Account" prefWidth="150"/>
+                        <TableColumn fx:id="dateOperationColumn" text="Date Operation"/>
+                        <TableColumn fx:id="dateValueColumn" text="Date Value"/>
+                        <TableColumn fx:id="labelColumn" text="Label" prefWidth="350"/>
+                        <TableColumn fx:id="debitColumn" text="Debit"/>
+                        <TableColumn fx:id="creditColumn" text="Credit"/>
+                        <TableColumn fx:id="categoryColumn" text="Category"/>
+                        <TableColumn fx:id="descriptionColumn" text="Description"/>
+                    </columns>
+                </TableView>
+
+                <VBox>
+                    <VBox>
+                        <HBox spacing="20">
+                            <HBox spacing="10">
+                                <Label text="Search in labels:"/>
+                                <TextField fx:id="tfSearchLabel"/>
+                            </HBox>
+                            <HBox spacing="10">
+                                <Label text="Category:"/>
+                                <ComboBox fx:id="cbCategory" promptText="Select category"/>
+                            </HBox>
+                            <HBox spacing="10">
+                                <CheckBox text="With date range" fx:id="cbDateRange"/>
+                                <HBox fx:id="dateRangeBox" spacing="10">
+                                    <Label text=" From:"/>
+                                    <DatePicker fx:id="dpFrom"/>
+                                    <Label text=" to:"/>
+                                    <DatePicker fx:id="dpTo"/>
+                                </HBox>
+                            </HBox>
+                            <CheckBox fx:id="cbOnlyNew" text="Only new entries"/>
+                            <CheckBox fx:id="cbOnlyDuplicates" text="Only duplicates"/>
+                        </HBox>
+                        <Button text="Search" onAction="#handleSearch"/>
+                    </VBox>
+                    <Separator orientation="HORIZONTAL" minHeight="25"/>
+                    <VBox>
+                        <HBox spacing="10">
+                            <Label text="Description:"/>
+                            <TextField fx:id="tfDescriptionSetter" prefWidth="250"/>
+                            <Label text="Category:"/>
+                            <ComboBox fx:id="cbCategorySetter" promptText="Select category"/>
+                        </HBox>
+                        <CheckBox text="Force description:" fx:id="cbForceDescription"/>
+                        <Button text="Update" onAction="#handleUpdate"/>
+                        <Button text="Switch duplicate" onAction="#handleSwitchADuplicate"/>
+                    </VBox>
+                    <Separator orientation="HORIZONTAL" minHeight="25"/>
+                    <HBox alignment="BOTTOM_RIGHT">
+                        <Button text="load" onAction="#loadFromJson"/>
+                        <Button text="Save" onAction="#handleSave"/>
                     </HBox>
+                </VBox>
+            </VBox>
+        </Tab>
+        <Tab text="Graphics">
+            <VBox>
+                <HBox>
+                    <Label text="Account:"/>
+                    <ComboBox fx:id="graphicsAccountComboBox" promptText="Select an account" onAction="#handleGenerateAccountBarGraph"/>
                 </HBox>
-            </HBox>
-            <Button text="Search" onAction="#handleSearch"/>
-        </VBox>
-        <Separator orientation="HORIZONTAL" minHeight="25"/>
-        <VBox>
-            <HBox spacing="10">
-                <Label text="Description:"/>
-                <TextField fx:id="tfDescriptionSetter" prefWidth="250"/>
-                <Label text="Category:"/>
-                <ComboBox fx:id="cbCategorySetter" promptText="Select category"/>
-            </HBox>
-            <CheckBox text="Force description:" fx:id="cbForceDescription"/>
-            <Button text="Update" onAction="#handleUpdate"/>
-        </VBox>
-        <Separator orientation="HORIZONTAL" minHeight="25"/>
-        <HBox alignment="BOTTOM_RIGHT">
-            <Button text="load" onAction="#loadFromJson"/>
-            <Button text="Save" onAction="#handleSave"/>
-        </HBox>
-    </VBox>
-</VBox>
+                <BarChart fx:id="accountBarChart" title="Monthly Account Balance">
+                    <xAxis>
+                        <CategoryAxis label="Month" />
+                    </xAxis>
+                    <yAxis>
+                        <NumberAxis label="Balance" />
+                    </yAxis>
+                </BarChart>
+                <LineChart fx:id="accountLineChart" title="Monthly Account Solde">
+                    <xAxis>
+                        <CategoryAxis label="Month" />
+                    </xAxis>
+                    <yAxis>
+                        <NumberAxis label="Solde" />
+                    </yAxis>
+                </LineChart>
+            </VBox>
+        </Tab>
+    </tabs>
+</TabPane>

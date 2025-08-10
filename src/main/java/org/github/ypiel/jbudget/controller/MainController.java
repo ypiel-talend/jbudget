@@ -13,6 +13,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -21,13 +22,17 @@ import java.util.Optional;
 import java.util.ResourceBundle;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javafx.beans.property.ReadOnlyObjectWrapper;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
+import javafx.scene.chart.BarChart;
+import javafx.scene.chart.LineChart;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Alert.AlertType;
 import javafx.scene.control.ButtonType;
@@ -39,6 +44,7 @@ import javafx.scene.control.ListCell;
 import javafx.scene.control.SelectionMode;
 import javafx.scene.control.TableCell;
 import javafx.scene.control.TableColumn;
+import javafx.scene.control.TableRow;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextField;
 import javafx.scene.layout.HBox;
@@ -58,7 +64,7 @@ public class MainController implements Initializable {
     private static final Path baseDirectory = Path.of("C:", "YIE", "tmp", "jbudget");
     private static final int maxUpdateEntriesWithoutConfirmation = 5;
     private static final Path OUTPUT_FOLDER = Path.of("C:", "YIE", "tmp", "jbudget", "output");
-    private static final Path OUTPUT_FILE =OUTPUT_FOLDER.resolve("jbudget.json");
+    private static final Path OUTPUT_FILE = OUTPUT_FOLDER.resolve("jbudget.json");
 
     @FXML
     public TextField tfSearchLabel;
@@ -78,6 +84,16 @@ public class MainController implements Initializable {
     public TextField tfDescriptionSetter;
     @FXML
     public CheckBox cbForceDescription;
+    @FXML
+    public CheckBox cbOnlyNew;
+    @FXML
+    public CheckBox cbOnlyDuplicates;
+    @FXML
+    public ComboBox<Account> graphicsAccountComboBox;
+    @FXML
+    public BarChart<String, Double> accountBarChart;
+    @FXML
+    public LineChart<String, Double> accountLineChart;
     @FXML
     private TableView<Entry> transactionTable;
     @FXML
@@ -113,8 +129,38 @@ public class MainController implements Initializable {
         initializeAccountCombobox();
         initializeSearchPanel();
         initializeUpdatePanel();
+        initializeBarChartTab();
 
         statusLabel.setText("Ready - Select an account and load transactions");
+
+        loadFromJson();
+    }
+
+    private void initializeBarChartTab() {
+        graphicsAccountComboBox.setCellFactory(lv -> new ListCell<Account>() {
+            @Override
+            protected void updateItem(Account account, boolean empty) {
+                super.updateItem(account, empty);
+                if (empty || account == null) {
+                    setText(null);
+                } else {
+                    setText(account.toLabel());
+                }
+            }
+        });
+
+        graphicsAccountComboBox.setButtonCell(new ListCell<Account>() {
+            @Override
+            protected void updateItem(Account account, boolean empty) {
+                super.updateItem(account, empty);
+                if (empty || account == null) {
+                    setText(null);
+                } else {
+                    setText(account.toLabel());
+                }
+            }
+        });
+        graphicsAccountComboBox.setItems(FXCollections.observableArrayList(accounts));
     }
 
     private void initializeSearchPanel() {
@@ -208,6 +254,28 @@ public class MainController implements Initializable {
                         .subtract(categoryColumn.widthProperty())
                         .subtract(20) // account for scrollbar and borders
         );
+
+        transactionTable.setRowFactory(tv -> new TableRow<Entry>() {
+            @Override
+            protected void updateItem(Entry entry, boolean empty) {
+                super.updateItem(entry, empty);
+
+                if (entry == null || empty) {
+                    setStyle(""); // Reset style if row is empty
+                } else {
+                    // Check if the label contains "toto"
+                    if (entry.newEntry() && entry.duplicate()) {
+                        setStyle("-fx-background-color: red;");
+                    } else if (entry.newEntry()) {
+                        setStyle("-fx-background-color: lightgreen;"); // Green background
+                    } else if (entry.duplicate()) {
+                        setStyle("-fx-background-color: orange;"); // Green background
+                    } else {
+                        setStyle(""); // Default style
+                    }
+                }
+            }
+        });
     }
 
     private void initializeAccounts() {
@@ -229,6 +297,24 @@ public class MainController implements Initializable {
                 3, 4, "dd/MM/yyyy", "dd/MM/yyyy", df, ";");
         accounts.add(anotherAccount);
         csvFormatMap.put(anotherAccount, anotherAccountFormat);
+    }
+
+    @FXML
+    private void handleSwitchADuplicate() {
+        ObservableList<Entry> entries = transactionTable.getSelectionModel().getSelectedItems();
+        if (entries.size() > maxUpdateEntriesWithoutConfirmation) {
+            boolean confirmation = askConfirmation("Confirmation", "You are about to switch duplicate tag for several entries at once: " + entries.size() + " . Do you want to proceed?");
+            if (!confirmation) {
+                return;
+            }
+        }
+
+        entries.stream().forEach(e -> {
+            allEntries.remove(e);
+            allEntries.add(e.duplicate() ? e.isNotDuplicate() : e.isDuplicate());
+        });
+
+        updateEntriesInTableView(String.format("Validation of %d transactions", entries.size()));
     }
 
     @FXML
@@ -277,14 +363,25 @@ public class MainController implements Initializable {
         EntryCategory category = cbCategory.getSelectionModel().getSelectedItem();
         LocalDate fromDate = dpFrom.getValue();
         LocalDate toDate = dpTo.getValue();
+        boolean onlyNew = cbOnlyNew.isSelected();
+        boolean onlyDuplicate = cbOnlyDuplicates.isSelected();
 
-        List<Entry> filteredEntries = this.allEntries.stream()
+        Stream<Entry> entryStream = this.allEntries.stream()
                 .filter(entry -> searchLabel.isEmpty() ||
                         entry.label().toLowerCase().contains(searchLabel.toLowerCase()))
                 .filter(entry -> category == EntryCategory.ALL || category == entry.category())
                 .filter(entry -> !cbDateRange.isSelected() || ((fromDate == null || !entry.dateOperation().isBefore(fromDate)) &&
-                        (toDate == null || !entry.dateOperation().isAfter(toDate))))
-                .toList();
+                        (toDate == null || !entry.dateOperation().isAfter(toDate))));
+
+        if (onlyNew) {
+            entryStream = entryStream.filter(Entry::newEntry);
+        }
+
+        if (onlyDuplicate) {
+            entryStream = entryStream.filter(Entry::duplicate);
+        }
+
+        List<Entry> filteredEntries = entryStream.toList();
 
         transactionTable.getItems().setAll(filteredEntries.stream().sorted().toList());
         statusLabel.setText(String.format("Found %d / %d transactions matching criteria", filteredEntries.size(), allEntries.size()));
@@ -307,24 +404,25 @@ public class MainController implements Initializable {
             }
 
             AccountCSVFormat format = csvFormatMap.get(selectedAccount);
-            if(format == null){
+            if (format == null) {
                 showAlert("Wrong configuration",
                         String.format("No CSV format for account %s.", selectedAccount.toLabel(), true));
             }
 
-            allEntries.clear();
+            //allEntries.clear();
+            final AtomicInteger nbAdded = new AtomicInteger();
+            //List<Entry> rejected = new ArrayList<>();
             try (DirectoryStream<Path> directoryStream = Files.newDirectoryStream(accountPath, "*.csv")) {
                 for (Path file : directoryStream) {
                     List<Entry> tmpEntries = parseCSVFile(file, selectedAccount, format);
-                    allEntries.addAll(tmpEntries);
-
-
+                    tmpEntries.stream().forEach(e -> {
+                        allEntries.add(Entry.contains(allEntries, e) ? e.isDuplicate() : e);
+                        nbAdded.incrementAndGet();
+                    });
                 }
             }
 
-            transactionTable.getItems().setAll(allEntries);
-            statusLabel.setText(String.format("Loaded %d transactions for account %s",
-                    allEntries.size(), selectedAccount.name()));
+            updateEntriesInTableView(String.format("%d transactions loaded", nbAdded.get()));
         } catch (IOException | CsvValidationException e) {
             showAlert("Error", "Failed to load transactions: " + e.getMessage());
         }
@@ -364,7 +462,7 @@ public class MainController implements Initializable {
                     }
 
                     entries.add(new Entry(account, dateOperation, dateValue, label,
-                            "", debit, credit, EntryCategory.MISC));
+                            "", debit, credit, EntryCategory.MISC, true, false));
 
                 } catch (Exception e) {
                     System.err.println("Error parsing line: " + Arrays.toString(line));
@@ -373,12 +471,13 @@ public class MainController implements Initializable {
             }
         }
 
-        return entries.stream().sorted().toList();
+        return entries.stream().toList();
     }
 
     private void showAlert(String title, String message) {
         showAlert(title, message, false);
     }
+
     private void showAlert(String title, String message, boolean shutdown) {
         Alert alert = new Alert(shutdown ? AlertType.ERROR : AlertType.INFORMATION);
         alert.setTitle(title);
@@ -386,7 +485,7 @@ public class MainController implements Initializable {
         alert.setContentText(message);
         alert.showAndWait();
 
-        if(shutdown){
+        if (shutdown) {
             System.exit(1);
         }
     }
@@ -412,7 +511,7 @@ public class MainController implements Initializable {
 
     public void handleSave() {
         try {
-            if(!Files.isDirectory(OUTPUT_FOLDER)) {
+            if (!Files.isDirectory(OUTPUT_FOLDER)) {
                 Files.createDirectories(OUTPUT_FOLDER);
             }
             EntryJsonController.saveEntriesToFile(
@@ -423,7 +522,7 @@ public class MainController implements Initializable {
         }
     }
 
-    public void loadFromJson(){
+    public void loadFromJson() {
         try {
 
             Map<Account, Account> accountMap = accounts.stream()
@@ -432,13 +531,29 @@ public class MainController implements Initializable {
             List<Entry> entries = EntryJsonController.loadEntriesFromFile(OUTPUT_FILE.toFile().getAbsolutePath());
             allEntries.clear();
             allEntries.addAll(entries.stream()
-                    .map(e -> e.withAccount(accountMap.get(e.account()))).sorted().toList()); // Only 1 instance for each account
-            transactionTable.getItems().setAll(allEntries);
-            statusLabel.setText(String.format("Loaded %d transactions from file %s",
+                    .map(e -> e.withAccount(accountMap.get(e.account())).isNotNew()).sorted().toList()); // Only 1 instance for each account
+            updateEntriesInTableView(String.format("Loaded %d transactions from file %s",
                     allEntries.size(), OUTPUT_FILE));
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
     }
 
+    private void updateEntriesInTableView(String message) {
+        Collections.sort(allEntries);
+        transactionTable.getItems().setAll(allEntries);
+        statusLabel.setText(message);
+        handleSearch();
+    }
+
+
+    public void handleGenerateAccountBarGraph() {
+        Account selectedAccount = graphicsAccountComboBox.getSelectionModel().getSelectedItem();
+        AccountBarChartController accountBarChartController = new AccountBarChartController(allEntries, this.accountBarChart);
+        accountBarChartController.computeGraph();
+
+        AccountLineChartController accountLineChartController = new AccountLineChartController(allEntries, this.accountLineChart);
+        accountLineChartController.computeGraph();
+
+    }
 }
