@@ -19,6 +19,7 @@
 <?import javafx.scene.chart.CategoryAxis?>
 <?import javafx.scene.chart.NumberAxis?>
 
+<?import javafx.scene.control.ScrollPane?>
 <TabPane xmlns="http://javafx.com/javafx/8.0.171" xmlns:fx="http://javafx.com/fxml/1"
          fx:controller="org.github.ypiel.jbudget.controller.MainController">
     <!-- Premier onglet -->
@@ -105,22 +106,26 @@
             <VBox>
                 <HBox>
                     <Label text="Account:"/>
-                    <ComboBox fx:id="graphicsAccountComboBox" promptText="Select an account" onAction="#handleGenerateAccountBarGraph"/>
+                    <ComboBox fx:id="graphicsAccountComboBox" promptText="Select an account"
+                              onAction="#handleGenerateAccountBarGraph"/>
                 </HBox>
-                <BarChart fx:id="accountBarChart" title="Monthly Account Balance">
-                    <xAxis>
-                        <CategoryAxis label="Month" />
-                    </xAxis>
-                    <yAxis>
-                        <NumberAxis label="Balance" />
-                    </yAxis>
-                </BarChart>
+                <ScrollPane fx:id="barChartScrollPane" fitToHeight="true" fitToWidth="true" pannable="true"
+                            hbarPolicy="ALWAYS" vbarPolicy="ALWAYS">
+                    <BarChart fx:id="accountBarChart" title="Monthly Account Balance">
+                        <xAxis>
+                            <CategoryAxis label="Month"/>
+                        </xAxis>
+                        <yAxis>
+                            <NumberAxis label="Balance"/>
+                        </yAxis>
+                    </BarChart>
+                </ScrollPane>
                 <LineChart fx:id="accountLineChart" title="Monthly Account Solde">
                     <xAxis>
-                        <CategoryAxis label="Month" />
+                        <CategoryAxis label="Month"/>
                     </xAxis>
                     <yAxis>
-                        <NumberAxis label="Solde" />
+                        <NumberAxis label="Solde"/>
                     </yAxis>
                 </LineChart>
             </VBox>

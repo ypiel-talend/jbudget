@@ -31,8 +31,10 @@ import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
+import javafx.scene.Cursor;
 import javafx.scene.chart.BarChart;
 import javafx.scene.chart.LineChart;
+import javafx.scene.chart.XYChart;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Alert.AlertType;
 import javafx.scene.control.ButtonType;
@@ -41,6 +43,8 @@ import javafx.scene.control.ComboBox;
 import javafx.scene.control.DatePicker;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
+import javafx.scene.control.ScrollPane;
+import javafx.scene.control.ScrollPane.ScrollBarPolicy;
 import javafx.scene.control.SelectionMode;
 import javafx.scene.control.TableCell;
 import javafx.scene.control.TableColumn;
@@ -65,6 +69,7 @@ public class MainController implements Initializable {
     private static final int maxUpdateEntriesWithoutConfirmation = 5;
     private static final Path OUTPUT_FOLDER = Path.of("C:", "YIE", "tmp", "jbudget", "output");
     private static final Path OUTPUT_FILE = OUTPUT_FOLDER.resolve("jbudget.json");
+    private static final double ZOOM_FACTOR = 1.1;
 
     @FXML
     public TextField tfSearchLabel;
@@ -95,6 +100,8 @@ public class MainController implements Initializable {
     @FXML
     public LineChart<String, Double> accountLineChart;
     @FXML
+    public ScrollPane barChartScrollPane;
+    @FXML
     private TableView<Entry> transactionTable;
     @FXML
     private ComboBox<Account> accountComboBox;
@@ -121,6 +128,10 @@ public class MainController implements Initializable {
     private final List<Entry> allEntries = new ArrayList<>();
     private final Set<Account> accounts = new TreeSet<>();
     private final Map<Account, AccountCSVFormat> csvFormatMap = new HashMap<>();
+
+    private boolean accountBarChartIsPanning = false;
+    private double accountBarChartLastPanX;
+    private double accountBarChartLastPanY;
 
     @Override
     public void initialize(URL location, ResourceBundle resources) {
@@ -161,6 +172,77 @@ public class MainController implements Initializable {
             }
         });
         graphicsAccountComboBox.setItems(FXCollections.observableArrayList(accounts));
+
+
+        accountBarChart.setOnScroll(event -> {
+            double deltaY = event.getDeltaY();
+
+            if (deltaY > 0) {
+                // Zoom in
+                accountBarChart.setScaleX(accountBarChart.getScaleX() * ZOOM_FACTOR);
+                accountBarChart.setScaleY(accountBarChart.getScaleY() * ZOOM_FACTOR);
+            } else {
+                // Zoom out
+                accountBarChart.setScaleX(accountBarChart.getScaleX() / ZOOM_FACTOR);
+                accountBarChart.setScaleY(accountBarChart.getScaleY() / ZOOM_FACTOR);
+            }
+
+            event.consume();
+        });
+
+        accountBarChart.setOnMouseReleased(event -> {
+            if (accountBarChartIsPanning) {
+                accountBarChartIsPanning = false;
+                accountBarChart.setCursor(Cursor.DEFAULT);
+                event.consume();
+            }
+        });
+
+        accountBarChart.setOnMousePressed(event -> {
+            if (event.isMiddleButtonDown()) {
+                accountBarChartIsPanning = true;
+                accountBarChartLastPanX = event.getSceneX();
+                accountBarChartLastPanY = event.getSceneY();
+                accountBarChart.setCursor(Cursor.MOVE);
+                event.consume();
+            }
+        });
+
+        accountBarChart.setOnMouseDragged(event -> {
+            if (accountBarChartIsPanning && event.isMiddleButtonDown()) {
+                double deltaX = event.getSceneX() - accountBarChartLastPanX;
+                double deltaY = event.getSceneY() - accountBarChartLastPanY;
+
+                // Apply translation
+                accountBarChart.setTranslateX(accountBarChart.getTranslateX() + deltaX);
+                accountBarChart.setTranslateY(accountBarChart.getTranslateY() + deltaY);
+
+                accountBarChartLastPanX = event.getSceneX();
+                accountBarChartLastPanY = event.getSceneY();
+                event.consume();
+            }
+        });
+
+        // Optional: Reset on double-click
+        accountBarChart.setOnMouseClicked(event -> {
+            if (event.getClickCount() == 2) {
+                resetZoomAndPan(accountBarChart);
+                event.consume();
+            }
+        });
+
+        barChartScrollPane.setPannable(true);
+        barChartScrollPane.setHbarPolicy(ScrollBarPolicy.ALWAYS);
+        barChartScrollPane.setVbarPolicy(ScrollBarPolicy.ALWAYS);
+        barChartScrollPane.setPrefHeight(400);
+
+    }
+
+    public void resetZoomAndPan(final XYChart chart) {
+        chart.setScaleX(1.0);
+        chart.setScaleY(1.0);
+        chart.setTranslateX(0);
+        chart.setTranslateY(0);
     }
 
     private void initializeSearchPanel() {
