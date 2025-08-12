@@ -6,6 +6,7 @@ import java.net.URL;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.time.LocalDate;
@@ -14,6 +15,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -21,14 +23,18 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.ResourceBundle;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javafx.beans.property.ReadOnlyObjectWrapper;
+import javafx.beans.property.SimpleObjectProperty;
+import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
+import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
 import javafx.scene.Cursor;
@@ -60,6 +66,7 @@ import com.opencsv.exceptions.CsvValidationException;
 
 import org.github.ypiel.jbudget.model.Account;
 import org.github.ypiel.jbudget.model.AccountCSVFormat;
+import org.github.ypiel.jbudget.model.AccountTotal;
 import org.github.ypiel.jbudget.model.Entry;
 import org.github.ypiel.jbudget.model.EntryCategory;
 
@@ -70,6 +77,8 @@ public class MainController implements Initializable {
     private static final Path OUTPUT_FOLDER = Path.of("C:", "YIE", "tmp", "jbudget", "output");
     private static final Path OUTPUT_FILE = OUTPUT_FOLDER.resolve("jbudget.json");
     private static final double ZOOM_FACTOR = 1.1;
+
+    private static final Account ALL_ACCOUNT = new Account("", "All accounts", "", 0);
 
     @FXML
     public TextField tfSearchLabel;
@@ -102,6 +111,18 @@ public class MainController implements Initializable {
     @FXML
     public ScrollPane barChartScrollPane;
     @FXML
+    public LineChart balanceChart;
+    @FXML
+    public TableView<AccountTotal> totalTable;
+    @FXML
+    public TableColumn<AccountTotal, String> accountTotalColumn;
+    @FXML
+    public TableColumn<AccountTotal, Double> totalColumn;
+    @FXML
+    public ComboBox<Account> accountSearchComboBox;
+    @FXML
+    public TextField tfDelete;
+    @FXML
     private TableView<Entry> transactionTable;
     @FXML
     private ComboBox<Account> accountComboBox;
@@ -133,6 +154,11 @@ public class MainController implements Initializable {
     private double accountBarChartLastPanX;
     private double accountBarChartLastPanY;
 
+    private SoldGraphController soldGraphController;
+
+    @FXML
+    private LineChart<String, Number> balance2Chart;
+
     @Override
     public void initialize(URL location, ResourceBundle resources) {
         initializeTableView();
@@ -141,10 +167,49 @@ public class MainController implements Initializable {
         initializeSearchPanel();
         initializeUpdatePanel();
         initializeBarChartTab();
+        initializeTotalTable();
 
         statusLabel.setText("Ready - Select an account and load transactions");
 
         loadFromJson();
+
+        soldGraphController = new SoldGraphController(balance2Chart);
+        soldGraphController.setEntries(this.allEntries);
+        //soldGraphController.refreshData();
+    }
+
+    private void initializeTotalTable() {
+        accountTotalColumn.setCellValueFactory(cellData ->
+                new SimpleStringProperty(cellData.getValue().account()));
+
+        totalColumn.setCellValueFactory(cellData ->
+                new SimpleObjectProperty<>(cellData.getValue().total()));
+
+        totalColumn.setCellFactory(_ -> new TableCell<>() {
+            @Override
+            protected void updateItem(Double item, boolean empty) {
+                super.updateItem(item, empty);
+                setText((empty || item == null) ? null : "%.2f".formatted(item));
+            }
+        });
+    }
+
+    public void displayTotals(Map<String, Double> totalsMap) {
+        List<AccountTotal> list = totalsMap.entrySet()
+                .stream()
+                .map(e -> new AccountTotal(e.getKey(), e.getValue()))
+                .sorted(new Comparator<AccountTotal>() {
+                    @Override
+                    public int compare(AccountTotal at1, AccountTotal at2) {
+                        return at1.account().compareTo(at2.account());
+                    }
+                })
+                .toList();
+
+        list = new ArrayList<>(list);
+        double total = list.stream().mapToDouble(AccountTotal::total).sum();
+        list.add(new AccountTotal("Total", total));
+        totalTable.setItems(FXCollections.observableArrayList(new ArrayList<>(list)));
     }
 
     private void initializeBarChartTab() {
@@ -236,6 +301,7 @@ public class MainController implements Initializable {
         barChartScrollPane.setVbarPolicy(ScrollBarPolicy.ALWAYS);
         barChartScrollPane.setPrefHeight(400);
 
+
     }
 
     public void resetZoomAndPan(final XYChart chart) {
@@ -246,9 +312,39 @@ public class MainController implements Initializable {
     }
 
     private void initializeSearchPanel() {
+        dateRangeBox.managedProperty().bind(dateRangeBox.visibleProperty());
         dateRangeBox.visibleProperty().bind(cbDateRange.selectedProperty());
+
         cbCategory.getItems().setAll(EntryCategory.values());
         cbCategory.getSelectionModel().select(EntryCategory.ALL);
+
+        accountSearchComboBox.setCellFactory(lv -> new ListCell<Account>() {
+            @Override
+            protected void updateItem(Account account, boolean empty) {
+                super.updateItem(account, empty);
+                if (empty || account == null) {
+                    setText(null);
+                } else {
+                    setText(account.toLabel());
+                }
+            }
+        });
+
+        accountSearchComboBox.setButtonCell(new ListCell<Account>() {
+            @Override
+            protected void updateItem(Account account, boolean empty) {
+                super.updateItem(account, empty);
+                if (empty || account == null) {
+                    setText(null);
+                } else {
+                    setText(account.toLabel());
+                }
+            }
+        });
+
+        List<Account> searchAccounts = new ArrayList<>(accounts);
+        searchAccounts.add(0, ALL_ACCOUNT);
+        accountSearchComboBox.setItems(FXCollections.observableArrayList(searchAccounts));
     }
 
     private void initializeUpdatePanel() {
@@ -368,17 +464,20 @@ public class MainController implements Initializable {
 
         // Initialize with some default accounts
 
-        Account ccfChequePerso = new Account("MyBank", "CCFChequePerso", "12345", 0.00);
-        AccountCSVFormat ccfChequePersoFormat = new AccountCSVFormat(0, 1, 2,
+        AccountCSVFormat ccfFormat = new AccountCSVFormat(0, 1, 2,
                 3, 4, "dd/MM/yyyy", "dd/MM/yyyy", df, ";");
-        accounts.add(ccfChequePerso);
-        csvFormatMap.put(ccfChequePerso, ccfChequePersoFormat);
 
-        Account anotherAccount = new Account("MyBank", "Savings Account", "SAV456", 5000.00);
-        AccountCSVFormat anotherAccountFormat = new AccountCSVFormat(0, 1, 2,
-                3, 4, "dd/MM/yyyy", "dd/MM/yyyy", df, ";");
-        accounts.add(anotherAccount);
-        csvFormatMap.put(anotherAccount, anotherAccountFormat);
+        Account ccfCheque1Perso = new Account("CCF", "CCF_CHEQUE1_YVES", "FR7618079442560281578504008", 0.00);
+        accounts.add(ccfCheque1Perso);
+        csvFormatMap.put(ccfCheque1Perso, ccfFormat);
+
+        Account ccfCheque2Commun = new Account("CCF", "CCF_CHEQUE2_COMMUN", "FR7618079442560281577954115", 0.00);
+        accounts.add(ccfCheque2Commun);
+        csvFormatMap.put(ccfCheque2Commun, ccfFormat);
+
+        Account ccfLivDurableSolidaire = new Account("CCF", "CCF_LIV_DURABLE_SOLIDAIRE", "FR7618079442560281578505851", 0.00);
+        accounts.add(ccfLivDurableSolidaire);
+        csvFormatMap.put(ccfLivDurableSolidaire, ccfFormat);
     }
 
     @FXML
@@ -445,15 +544,32 @@ public class MainController implements Initializable {
         EntryCategory category = cbCategory.getSelectionModel().getSelectedItem();
         LocalDate fromDate = dpFrom.getValue();
         LocalDate toDate = dpTo.getValue();
+        Account account = accountSearchComboBox.getSelectionModel().getSelectedItem();
         boolean onlyNew = cbOnlyNew.isSelected();
         boolean onlyDuplicate = cbOnlyDuplicates.isSelected();
 
-        Stream<Entry> entryStream = this.allEntries.stream()
-                .filter(entry -> searchLabel.isEmpty() ||
-                        entry.label().toLowerCase().contains(searchLabel.toLowerCase()))
-                .filter(entry -> category == EntryCategory.ALL || category == entry.category())
-                .filter(entry -> !cbDateRange.isSelected() || ((fromDate == null || !entry.dateOperation().isBefore(fromDate)) &&
-                        (toDate == null || !entry.dateOperation().isAfter(toDate))));
+        Stream<Entry> entryStream = this.allEntries.stream();
+
+        if (account != null && account != ALL_ACCOUNT) {
+            entryStream = entryStream.filter(e -> account.equals(e.account()));
+        }
+
+        if (!searchLabel.isEmpty()) {
+            entryStream = entryStream.filter(e -> e.label().toLowerCase().contains(searchLabel.toLowerCase()));
+        }
+
+        if (category != EntryCategory.ALL) {
+            entryStream = entryStream.filter(e -> category == e.category());
+        }
+
+        if (cbDateRange.isSelected()) {
+            if (fromDate != null) {
+                entryStream = entryStream.filter(e -> !e.dateOperation().isBefore(fromDate));
+            }
+            if (toDate != null) {
+                entryStream = entryStream.filter(e -> !e.dateOperation().isAfter(toDate));
+            }
+        }
 
         if (onlyNew) {
             entryStream = entryStream.filter(Entry::newEntry);
@@ -468,6 +584,7 @@ public class MainController implements Initializable {
         transactionTable.getItems().setAll(filteredEntries.stream().sorted().toList());
         statusLabel.setText(String.format("Found %d / %d transactions matching criteria", filteredEntries.size(), allEntries.size()));
 
+        updateTotals();
     }
 
     @FXML
@@ -480,10 +597,7 @@ public class MainController implements Initializable {
 
         try {
             Path accountPath = baseDirectory.resolve(selectedAccount.name());
-            if (!Files.exists(accountPath)) {
-                statusLabel.setText("No transaction directory found for this account");
-                return;
-            }
+            Files.createDirectories(accountPath);
 
             AccountCSVFormat format = csvFormatMap.get(selectedAccount);
             if (format == null) {
@@ -512,6 +626,11 @@ public class MainController implements Initializable {
 
     private List<Entry> parseCSVFile(Path file, Account account, AccountCSVFormat format)
             throws IOException, CsvValidationException {
+
+        if (file.getFileName().toString().startsWith("ok_")) {
+            return Collections.emptyList();
+        }
+
         List<Entry> entries = new ArrayList<>();
 
         try (CSVReader reader = new CSVReaderBuilder(new FileReader(file.toFile()))
@@ -552,6 +671,9 @@ public class MainController implements Initializable {
                 }
             }
         }
+
+        Path doneFile = file.resolveSibling("ok_" + file.getFileName().toString());
+        Files.move(file, doneFile);
 
         return entries.stream().toList();
     }
@@ -607,6 +729,10 @@ public class MainController implements Initializable {
     public void loadFromJson() {
         try {
 
+            if (!Files.isRegularFile(OUTPUT_FILE)) {
+                Files.writeString(OUTPUT_FILE, "[]", StandardOpenOption.CREATE_NEW);
+            }
+
             Map<Account, Account> accountMap = accounts.stream()
                     .collect(Collectors.toMap(e -> e, e -> e));
 
@@ -628,6 +754,18 @@ public class MainController implements Initializable {
         handleSearch();
     }
 
+    private void updateTotals() {
+        ObservableList<Entry> entries = transactionTable.getItems();
+        Map<String, Double> collect = entries.stream()
+                .filter(e -> !e.duplicate()) // Duplicates are ignored from totals
+                .collect(
+                        Collectors.groupingBy(Entry::account,
+                                TreeMap::new,
+                                Collectors.summingDouble(Entry::value)))
+                .entrySet().stream().collect(Collectors.toMap(e -> e.getKey().toLabel(), e -> e.getValue()));
+        displayTotals(collect);
+    }
+
 
     public void handleGenerateAccountBarGraph() {
         Account selectedAccount = graphicsAccountComboBox.getSelectionModel().getSelectedItem();
@@ -637,5 +775,15 @@ public class MainController implements Initializable {
         AccountLineChartController accountLineChartController = new AccountLineChartController(allEntries, this.accountLineChart);
         accountLineChartController.computeGraph();
 
+    }
+
+    public void handleDelete() {
+        if ("DELETE".equals(tfDelete.getText())) {
+            List<Entry> toRemove = transactionTable.getSelectionModel().getSelectedItems().stream().toList();
+            allEntries.removeAll(toRemove);
+            handleSearch();
+        }
+
+        tfDelete.setText("");
     }
 }

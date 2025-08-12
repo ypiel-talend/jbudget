@@ -3,14 +3,14 @@ package org.github.ypiel.jbudget.model;
 public record Account(String bank, String name, String code, double initialBalance) implements Comparable<Account> {
 
     public Account {
-        if (bank == null || bank.isBlank()) {
-            throw new IllegalArgumentException("Bank cannot be null or empty");
+        if (bank == null) {
+            throw new IllegalArgumentException("Bank cannot be null");
         }
         if (name == null || name.isBlank()) {
             throw new IllegalArgumentException("Name cannot be null or empty");
         }
-        if (code == null || code.isBlank()) {
-            throw new IllegalArgumentException("Code cannot be null or empty");
+        if (code == null) {
+            throw new IllegalArgumentException("Code cannot be null");
         }
         if (initialBalance < 0) {
             throw new IllegalArgumentException("Initial balance cannot be negative");
@@ -18,7 +18,7 @@ public record Account(String bank, String name, String code, double initialBalan
     }
 
     public String toLabel() {
-        return String.format("%s (%s)", name, bank);
+        return bank.isBlank() ? name : String.format("%s (%s)", name, bank);
     }
 
     @Override

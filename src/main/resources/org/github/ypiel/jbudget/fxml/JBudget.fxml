@@ -20,6 +20,7 @@
 <?import javafx.scene.chart.NumberAxis?>
 
 <?import javafx.scene.control.ScrollPane?>
+<?import javafx.scene.layout.Pane?>
 <TabPane xmlns="http://javafx.com/javafx/8.0.171" xmlns:fx="http://javafx.com/fxml/1"
          fx:controller="org.github.ypiel.jbudget.controller.MainController">
     <!-- Premier onglet -->
@@ -68,6 +69,10 @@
                                 <Label text="Category:"/>
                                 <ComboBox fx:id="cbCategory" promptText="Select category"/>
                             </HBox>
+                            <HBox>
+                                <Label text="Account:"/>
+                                <ComboBox fx:id="accountSearchComboBox" promptText="Select an account"/>
+                            </HBox>
                             <HBox spacing="10">
                                 <CheckBox text="With date range" fx:id="cbDateRange"/>
                                 <HBox fx:id="dateRangeBox" spacing="10">
@@ -93,6 +98,10 @@
                         <CheckBox text="Force description:" fx:id="cbForceDescription"/>
                         <Button text="Update" onAction="#handleUpdate"/>
                         <Button text="Switch duplicate" onAction="#handleSwitchADuplicate"/>
+                        <HBox>
+                            <Button text="Delete" onAction="#handleDelete"/>
+                            <TextField fx:id="tfDelete" prefWidth="250"/>
+                        </HBox>
                     </VBox>
                     <Separator orientation="HORIZONTAL" minHeight="25"/>
                     <HBox alignment="BOTTOM_RIGHT">
@@ -100,6 +109,13 @@
                         <Button text="Save" onAction="#handleSave"/>
                     </HBox>
                 </VBox>
+                <Separator orientation="HORIZONTAL" minHeight="25"/>
+                <TableView fx:id="totalTable">
+                    <columns>
+                        <TableColumn fx:id="accountTotalColumn" text="Account" prefWidth="350"/>
+                        <TableColumn fx:id="totalColumn" text="Date Operation"/>
+                    </columns>
+                </TableView>
             </VBox>
         </Tab>
         <Tab text="Graphics">
@@ -128,6 +144,17 @@
                         <NumberAxis label="Solde"/>
                     </yAxis>
                 </LineChart>
+                <Pane>
+                    <LineChart fx:id="balance2Chart" legendVisible="true" createSymbols="true" prefHeight="600.0"
+                               prefWidth="800.0">
+                        <xAxis>
+                            <CategoryAxis label="Month"/>
+                        </xAxis>
+                        <yAxis>
+                            <NumberAxis label="Balance"/>
+                        </yAxis>
+                    </LineChart>
+                </Pane>
             </VBox>
         </Tab>
     </tabs>
