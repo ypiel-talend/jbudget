@@ -1,5 +1,6 @@
 package org.github.ypiel.jbudget.controller;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.TemporalAdjusters;
@@ -22,24 +23,24 @@ import org.github.ypiel.jbudget.model.Entry;
 public class AccountLineChartController {
 
     private final Collection<Entry> entries;
-    private final LineChart<String, Double> lineChart;
+    private final LineChart<String, BigDecimal> lineChart;
     private final CategoryAxis xAxis;
-    private final Axis<Double> yAxis; // Changed to Axis<Double>
+    private final Axis<BigDecimal> yAxis; // Changed to Axis<Double>
 
     // Store original data for zoom calculations
     private List<String> allCategories;
-    private LinkedHashMap<String, Double> allData;
-    private XYChart.Series<String, Double> originalSeries;
+    private LinkedHashMap<String, BigDecimal> allData;
+    private XYChart.Series<String, BigDecimal> originalSeries;
 
     // Zoom state
-    private double minY = Double.MAX_VALUE;
-    private double maxY = Double.MIN_VALUE;
+    private BigDecimal minY = new BigDecimal(Double.MAX_VALUE);
+    private BigDecimal maxY = new BigDecimal(Double.MIN_VALUE);
     private int startCategoryIndex = 0;
     private int endCategoryIndex = 0;
 
     private static final DateTimeFormatter MONTH_FORMATTER = DateTimeFormatter.ofPattern("MMM yyyy");
 
-    public AccountLineChartController(final Collection<Entry> entries, final LineChart<String, Double> lineChart) {
+    public AccountLineChartController(final Collection<Entry> entries, final LineChart<String, BigDecimal> lineChart) {
         this.entries = entries;
         this.lineChart = lineChart;
         this.xAxis = (CategoryAxis) lineChart.getXAxis();
@@ -48,25 +49,25 @@ public class AccountLineChartController {
     }
 
     public void computeGraph() {
-        Map<LocalDate, Double> soldesParMois = this.entries.stream()
+        Map<LocalDate, BigDecimal> soldesParMois = this.entries.stream()
                 .collect(Collectors.groupingBy(
                         e -> e.dateValue().with(TemporalAdjusters.lastDayOfMonth()),
                         TreeMap::new,  // Pour garder l'ordre chronologique
-                        Collectors.summingDouble(Entry::value)
+                        Collectors.reducing(BigDecimal.ZERO, Entry::value, BigDecimal::add)
                 ));
 
         // Create cumulative balance with formatted dates
         allData = new LinkedHashMap<>();
-        double cumulativeBalance = 0.0;
+        BigDecimal cumulativeBalance = BigDecimal.ZERO;
 
-        for (Map.Entry<LocalDate, Double> entry : soldesParMois.entrySet()) {
-            cumulativeBalance += entry.getValue();
+        for (Map.Entry<LocalDate, BigDecimal> entry : soldesParMois.entrySet()) {
+            cumulativeBalance = cumulativeBalance.add(entry.getValue());
             String formattedDate = entry.getKey().format(MONTH_FORMATTER);
             allData.put(formattedDate, cumulativeBalance);
 
             // Track min/max values
-            minY = Math.min(minY, cumulativeBalance);
-            maxY = Math.max(maxY, cumulativeBalance);
+            minY = minY.min(cumulativeBalance);
+            maxY = maxY.max(cumulativeBalance);
         }
 
         // Store all categories in order
@@ -167,26 +168,28 @@ public class AccountLineChartController {
         xAxis.getCategories().setAll(visibleCategories);
 
         // Create filtered series maintaining line continuity
-        XYChart.Series<String, Double> filteredSeries = new XYChart.Series<>();
+        XYChart.Series<String, BigDecimal> filteredSeries = new XYChart.Series<>();
 
         for (int i = startCategoryIndex; i <= endCategoryIndex; i++) {
             String category = allCategories.get(i);
-            Double value = allData.get(category);
+            BigDecimal value = allData.get(category);
             filteredSeries.getData().add(new XYChart.Data<>(category, value));
         }
 
         // Update Y-axis range based on visible data (only if it's a NumberAxis)
         //if (yAxis instanceof NumberAxis numberAxis) {
-            double visibleMinY = filteredSeries.getData().stream()
-                    .mapToDouble(data -> data.getYValue())
-                    .min().orElse(minY);
-            double visibleMaxY = filteredSeries.getData().stream()
-                    .mapToDouble(data -> data.getYValue())
-                    .max().orElse(maxY);
+            BigDecimal visibleMinY = filteredSeries.getData().stream()
+                    .map(data -> data.getYValue())
+                    .min(BigDecimal::compareTo).orElse(minY);
+            BigDecimal visibleMaxY = filteredSeries.getData().stream()
+                    .map(data -> data.getYValue())
+                    .max(BigDecimal::compareTo).orElse(maxY);
 
             // Add some padding (10% of the range)
-            double yRange = visibleMaxY - visibleMinY;
-            double yPadding = yRange > 0 ? yRange * 0.1 : Math.abs(visibleMaxY) * 0.1;
+            BigDecimal yRange = visibleMaxY.subtract(visibleMinY);
+            BigDecimal yPadding = yRange.compareTo(BigDecimal.ZERO) > 0 ?
+                    yRange.multiply(new BigDecimal("0.1")) :
+                    visibleMaxY.abs().multiply(new BigDecimal("0.1"));
 
 
           /*  numberAxis.setAutoRanging(false);

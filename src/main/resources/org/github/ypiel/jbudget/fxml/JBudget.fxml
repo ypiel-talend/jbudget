@@ -43,7 +43,10 @@
                     <Button text="Load new transactions" onAction="#handleLoadTransactions"/>
                 </HBox>
 
-                <Label fx:id="statusLabel" style="-fx-font-style: italic;"/>
+                <VBox>
+                    <Label fx:id="statusLabel" style="-fx-font-style: italic;"/>
+                    <Label fx:id="nbDuplicatesLabel" style="-fx-font-style: italic; -fx-text-fill: red;"/>
+                </VBox>
 
                 <TableView fx:id="transactionTable">
                     <columns>

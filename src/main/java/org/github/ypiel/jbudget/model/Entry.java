@@ -1,10 +1,13 @@
 package org.github.ypiel.jbudget.model;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Collection;
 
+import static java.math.BigDecimal.ZERO;
+
 public record Entry(Account account, LocalDate dateOperation, LocalDate dateValue, String label, String description,
-                    double debit, double credit, EntryCategory category,
+                    BigDecimal debit, BigDecimal credit, EntryCategory category,
                     boolean newEntry, boolean duplicate) implements Comparable<Entry> {
 
     public Entry {
@@ -12,7 +15,7 @@ public record Entry(Account account, LocalDate dateOperation, LocalDate dateValu
             category = EntryCategory.MISC;
         }
 
-        if (account == null || dateOperation == null || dateValue == null || label == null || description == null || (debit < 0 && credit < 0)) {
+        if (account == null || dateOperation == null || dateValue == null || label == null || description == null || (debit.compareTo(ZERO) < 0 && credit.compareTo(ZERO) < 0)) {
             throw new IllegalArgumentException("Entry with wrong parameters: " + String.format("account: %s, dateOperation: %s, dateValue: %s, label: %s, description: %s, debit: %.2f, credit: %.2f",
                     account, dateOperation, dateValue, label, description, debit, credit));
         }
@@ -20,7 +23,7 @@ public record Entry(Account account, LocalDate dateOperation, LocalDate dateValu
     }
 
     public Entry(Account account, LocalDate dateOperation, LocalDate dateValue, String label, String description,
-                 double debit, double credit, EntryCategory category) {
+                 BigDecimal debit, BigDecimal credit, EntryCategory category) {
         this(account, dateOperation, dateValue, label, description, debit, credit, category, false, false);
     }
 
@@ -48,9 +51,9 @@ public record Entry(Account account, LocalDate dateOperation, LocalDate dateValu
         return new Entry(account, dateOperation, dateValue, label, description, debit, credit, category, false, duplicate);
     }
 
-    public double value(){
-        if(debit > 0){
-            return debit * -1;
+    public BigDecimal value(){
+        if(debit.compareTo(ZERO) > 0){
+            return debit.negate();
         }
 
          return credit;
@@ -71,11 +74,11 @@ public record Entry(Account account, LocalDate dateOperation, LocalDate dateValu
         if (cmp != 0) return cmp;
 
         // Compare by debit (ascending)
-        cmp = Double.compare(this.debit(), e.debit());
+        cmp = this.debit().compareTo(e.debit());
         if (cmp != 0) return cmp;
 
         // Compare by credit (ascending)
-        cmp = Double.compare(this.credit(), e.credit());
+        cmp = this.credit().compareTo(e.credit());
         if (cmp != 0) return cmp;
 
         // Compare by account (if Account implements Comparable)

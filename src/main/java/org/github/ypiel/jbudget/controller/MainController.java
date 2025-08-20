@@ -2,6 +2,7 @@ package org.github.ypiel.jbudget.controller;
 
 import java.io.FileReader;
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.net.URL;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
@@ -105,9 +106,9 @@ public class MainController implements Initializable {
     @FXML
     public ComboBox<Account> graphicsAccountComboBox;
     @FXML
-    public BarChart<String, Double> accountBarChart;
+    public BarChart<String, BigDecimal> accountBarChart;
     @FXML
-    public LineChart<String, Double> accountLineChart;
+    public LineChart<String, BigDecimal> accountLineChart;
     @FXML
     public ScrollPane barChartScrollPane;
     @FXML
@@ -117,11 +118,13 @@ public class MainController implements Initializable {
     @FXML
     public TableColumn<AccountTotal, String> accountTotalColumn;
     @FXML
-    public TableColumn<AccountTotal, Double> totalColumn;
+    public TableColumn<AccountTotal, BigDecimal> totalColumn;
     @FXML
     public ComboBox<Account> accountSearchComboBox;
     @FXML
     public TextField tfDelete;
+    @FXML
+    public Label nbDuplicatesLabel;
     @FXML
     private TableView<Entry> transactionTable;
     @FXML
@@ -140,9 +143,9 @@ public class MainController implements Initializable {
     @FXML
     private TableColumn<Entry, String> descriptionColumn;
     @FXML
-    private TableColumn<Entry, Double> debitColumn;
+    private TableColumn<Entry, BigDecimal> debitColumn;
     @FXML
-    private TableColumn<Entry, Double> creditColumn;
+    private TableColumn<Entry, BigDecimal> creditColumn;
     @FXML
     private TableColumn<Entry, EntryCategory> categoryColumn;
 
@@ -157,7 +160,7 @@ public class MainController implements Initializable {
     private SoldGraphController soldGraphController;
 
     @FXML
-    private LineChart<String, Number> balance2Chart;
+    private LineChart<String, BigDecimal> balance2Chart;
 
     @Override
     public void initialize(URL location, ResourceBundle resources) {
@@ -187,14 +190,14 @@ public class MainController implements Initializable {
 
         totalColumn.setCellFactory(_ -> new TableCell<>() {
             @Override
-            protected void updateItem(Double item, boolean empty) {
+            protected void updateItem(BigDecimal item, boolean empty) {
                 super.updateItem(item, empty);
                 setText((empty || item == null) ? null : "%.2f".formatted(item));
             }
         });
     }
 
-    public void displayTotals(Map<String, Double> totalsMap) {
+    public void displayTotals(Map<String, BigDecimal> totalsMap) {
         List<AccountTotal> list = totalsMap.entrySet()
                 .stream()
                 .map(e -> new AccountTotal(e.getKey(), e.getValue()))
@@ -207,7 +210,7 @@ public class MainController implements Initializable {
                 .toList();
 
         list = new ArrayList<>(list);
-        double total = list.stream().mapToDouble(AccountTotal::total).sum();
+        BigDecimal total = list.stream().map(AccountTotal::total).reduce(BigDecimal.ZERO, BigDecimal::add);
         list.add(new AccountTotal("Total", total));
         totalTable.setItems(FXCollections.observableArrayList(new ArrayList<>(list)));
     }
@@ -580,9 +583,11 @@ public class MainController implements Initializable {
         }
 
         List<Entry> filteredEntries = entryStream.toList();
+        long nbDuplicates = filteredEntries.stream().filter(e -> e.duplicate()).count();
 
         transactionTable.getItems().setAll(filteredEntries.stream().sorted().toList());
-        statusLabel.setText(String.format("Found %d / %d transactions matching criteria", filteredEntries.size(), allEntries.size()));
+        statusLabel.setText(String.format("Found %d / %d transactions matching criteria ", filteredEntries.size(), allEntries.size()));
+        nbDuplicatesLabel.setText(nbDuplicates == 0 ? "" : String.format("%s are duplicates", nbDuplicates));
 
         updateTotals();
     }
@@ -651,15 +656,15 @@ public class MainController implements Initializable {
                     String label = line[format.labelIndex()].trim();
 
                     String sDebit = line[format.debitIndex()].trim();
-                    double debit = 0;
+                    BigDecimal debit = BigDecimal.ZERO;
                     if (!sDebit.isEmpty()) {
-                        debit = format.decimalFormat().parse(sDebit).doubleValue();
+                        debit = (BigDecimal) format.decimalFormat().parse(sDebit);
                     }
 
                     String sCredit = line[format.creditIndex()].trim();
-                    double credit = 0;
+                    BigDecimal credit = BigDecimal.ZERO;
                     if (!sCredit.isEmpty()) {
-                        credit = format.decimalFormat().parse(sCredit).doubleValue();
+                        credit = (BigDecimal) format.decimalFormat().parse(sCredit);
                     }
 
                     entries.add(new Entry(account, dateOperation, dateValue, label,
@@ -756,13 +761,29 @@ public class MainController implements Initializable {
 
     private void updateTotals() {
         ObservableList<Entry> entries = transactionTable.getItems();
-        Map<String, Double> collect = entries.stream()
+        Map<String, BigDecimal> collect = entries.stream()
                 .filter(e -> !e.duplicate()) // Duplicates are ignored from totals
                 .collect(
                         Collectors.groupingBy(Entry::account,
                                 TreeMap::new,
-                                Collectors.summingDouble(Entry::value)))
+                                Collectors.reducing(BigDecimal.ZERO, Entry::value, BigDecimal::add)))
                 .entrySet().stream().collect(Collectors.toMap(e -> e.getKey().toLabel(), e -> e.getValue()));
+
+        try {
+            Files.writeString(Path.of("c:", "YIE", "tmp", "entriesValues.txt"),
+                    entries.stream()
+                            .map(Entry::value)
+                            .sorted()
+                            .map(Object::toString)
+                            .collect(Collectors.joining("\n")));
+            BigDecimal sum = entries.stream().filter(e -> !e.duplicate()).collect(Collectors.reducing(BigDecimal.ZERO, Entry::value, BigDecimal::add));
+            BigDecimal sum2 = entries.stream().collect(Collectors.reducing(BigDecimal.ZERO, Entry::value, BigDecimal::add));
+            System.out.println("Sans duplicate ****************> " + sum);
+            System.out.println("Avec duplicate ****************> " + sum2);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+
         displayTotals(collect);
     }
 

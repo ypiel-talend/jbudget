@@ -1,11 +1,10 @@
 package org.github.ypiel.jbudget.controller;
 
-import java.awt.Container;
+import java.math.BigDecimal;
 import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -18,9 +17,7 @@ import javafx.fxml.FXML;
 import javafx.scene.chart.CategoryAxis;
 import javafx.scene.chart.LineChart;
 import javafx.scene.chart.XYChart;
-import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.Pane;
-import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
 
@@ -28,11 +25,11 @@ import org.github.ypiel.jbudget.model.Entry;
 
 public class SoldGraphController {
 
-    private final LineChart<String, Number> balanceChart;
+    private final LineChart<String, BigDecimal> balanceChart;
 
     private Collection<Entry> allEntries = new ArrayList<>();
     private Collection<Entry> currentEntries = new ArrayList<>();
-    private Map<String, Double> monthlyBalances;
+    private Map<String, BigDecimal> monthlyBalances;
     private List<String> allMonths;
     private boolean isDragging = false;
     private String startMonth = null;
@@ -42,7 +39,7 @@ public class SoldGraphController {
 
     private Rectangle selectionRectangle;
 
-    public SoldGraphController(final LineChart<String, Number> balanceChart) {
+    public SoldGraphController(final LineChart<String, BigDecimal> balanceChart) {
         this.balanceChart = balanceChart;
         setupChart();
     }
@@ -148,21 +145,21 @@ public class SoldGraphController {
         }
 
         // Group entries by month and calculate monthly totals
-        Map<YearMonth, Double> monthlyTotals = currentEntries.stream()
+        Map<YearMonth, BigDecimal> monthlyTotals = currentEntries.stream()
                 .collect(Collectors.groupingBy(
                         entry -> YearMonth.from(entry.dateOperation()),
                         TreeMap::new,
-                        Collectors.summingDouble(Entry::value)
+                        Collectors.reducing(BigDecimal.ZERO, Entry::value, BigDecimal::add)
                 ));
 
         // Calculate cumulative balances
         monthlyBalances = new LinkedHashMap<>();
         allMonths = new ArrayList<>();
-        double cumulativeBalance = 0.0;
+        BigDecimal cumulativeBalance = BigDecimal.ZERO;
 
-        for (Map.Entry<YearMonth, Double> monthEntry : monthlyTotals.entrySet()) {
+        for (Map.Entry<YearMonth, BigDecimal> monthEntry : monthlyTotals.entrySet()) {
             String monthKey = monthEntry.getKey().format(MONTH_FORMATTER);
-            cumulativeBalance += monthEntry.getValue();
+            cumulativeBalance = cumulativeBalance.add(monthEntry.getValue());
             monthlyBalances.put(monthKey, cumulativeBalance);
             allMonths.add(monthKey);
         }
@@ -175,10 +172,10 @@ public class SoldGraphController {
             return;
         }
 
-        XYChart.Series<String, Number> series = new XYChart.Series<>();
+        XYChart.Series<String, BigDecimal> series = new XYChart.Series<>();
         series.setName("Balance");
 
-        for (Map.Entry<String, Double> entry : monthlyBalances.entrySet()) {
+        for (Map.Entry<String, BigDecimal> entry : monthlyBalances.entrySet()) {
             series.getData().add(new XYChart.Data<>(entry.getKey(), entry.getValue()));
         }
 

@@ -1,3 +1,5 @@
 package org.github.ypiel.jbudget.model;
 
-public record AccountTotal(String account, Double total) {}
+import java.math.BigDecimal;
+
+public record AccountTotal(String account, BigDecimal total) {}

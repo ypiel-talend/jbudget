@@ -1,5 +1,6 @@
 package org.github.ypiel.jbudget.controller;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.temporal.TemporalAdjusters;
 import java.util.Collection;
@@ -15,26 +16,26 @@ import org.github.ypiel.jbudget.model.Entry;
 public class AccountBarChartController {
 
     private final Collection<Entry> entries;
-    private final BarChart<String, Double>
+    private final BarChart<String, BigDecimal>
             barChart;
 
-    public AccountBarChartController(final Collection<Entry> entries, final BarChart<String, Double> barChart){
+    public AccountBarChartController(final Collection<Entry> entries, final BarChart<String, BigDecimal> barChart){
         this.entries = entries;
         this.barChart = barChart;
     }
 
     public void computeGraph(){
-        XYChart.Series<String, Double> series = new XYChart.Series<>();
+        XYChart.Series<String, BigDecimal> series = new XYChart.Series<>();
 
-        Map<LocalDate, Double> collect = this.entries.stream()
+        Map<LocalDate, BigDecimal> collect = this.entries.stream()
                 .map(e -> new EntryMonthValue(e.dateValue().with(TemporalAdjusters.lastDayOfMonth()), e.value()))
-                .collect(Collectors.groupingBy(EntryMonthValue::month, TreeMap::new, Collectors.summingDouble(EntryMonthValue::value)));
+                .collect(Collectors.groupingBy(EntryMonthValue::month, TreeMap::new, Collectors.reducing(BigDecimal.ZERO, EntryMonthValue::value, BigDecimal::add)));
 
         collect.entrySet().stream().forEach(e -> series.getData().add(new XYChart.Data<>(String.valueOf(e.getKey()), e.getValue())));
 
         barChart.getData().setAll(series);
     }
 
-    private record EntryMonthValue(LocalDate month, Double value){}
+    private record EntryMonthValue(LocalDate month, BigDecimal value){}
 
 }
