@@ -2,6 +2,7 @@ package org.github.ypiel.jbudget.model;
 
 public enum EntryCategory {
     ALL,
+    ACTIVITY,
     AMAZON,
     BANK_FEES,
     CARE_HEALTH,
@@ -11,12 +12,14 @@ public enum EntryCategory {
     FAMILY,
     GIFTS,
     GROCERIES_HOUSEHOLD,
+    HOME_LOAN,
     HOUSE_WORK,
     INCOME,
     INVESTMENT_PESO,
     LUNCH_RESTAURANT,
     MISC,
     OUTINGS_FRIENDS_RESTAURANT,
+    PAPA,
     SHARED,
     SNACK_BAKERY,
     SPORT,
@@ -25,6 +28,8 @@ public enum EntryCategory {
     TRANSPORT,
     TRAVEL,
     UNDEFINED,
-    WITHDRAWAL
+    WITHDRAWAL,
+    WORK_FOOD,
+    ADOPTION
 
 }

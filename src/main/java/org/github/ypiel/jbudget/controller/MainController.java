@@ -462,13 +462,15 @@ public class MainController implements Initializable {
     private void initializeAccounts() {
         DecimalFormatSymbols symbols = new DecimalFormatSymbols(Locale.FRENCH);
         symbols.setDecimalSeparator(',');
-        DecimalFormat df = new DecimalFormat("#0.00", symbols);
-        df.setParseBigDecimal(true);
+        DecimalFormat dfCCF = new DecimalFormat("#0.00", symbols);
+        dfCCF.setParseBigDecimal(true);
 
         // Initialize with some default accounts
 
+
+        // CCF
         AccountCSVFormat ccfFormat = new AccountCSVFormat(0, 1, 2,
-                3, 4, "dd/MM/yyyy", "dd/MM/yyyy", df, ";");
+                3, 4, "dd/MM/yyyy", "dd/MM/yyyy", dfCCF, ";");
 
         Account ccfCheque1Perso = new Account("CCF", "CCF_CHEQUE1_YVES", "FR7618079442560281578504008", 0.00);
         accounts.add(ccfCheque1Perso);
@@ -481,6 +483,36 @@ public class MainController implements Initializable {
         Account ccfLivDurableSolidaire = new Account("CCF", "CCF_LIV_DURABLE_SOLIDAIRE", "FR7618079442560281578505851", 0.00);
         accounts.add(ccfLivDurableSolidaire);
         csvFormatMap.put(ccfLivDurableSolidaire, ccfFormat);
+
+        Account ccfLivA = new Account("CCF", "CCF_LIV_A", "FR7618079442560281578500128", 0.00);
+        accounts.add(ccfLivA);
+        csvFormatMap.put(ccfLivA, ccfFormat);
+
+        Account ccfLivEquilibre = new Account("CCF", "CCF_LIV_EQUILIBRE", "FR7618079442560281578500322", 0.00);
+        accounts.add(ccfLivEquilibre);
+        csvFormatMap.put(ccfLivEquilibre, ccfFormat);
+
+        Account ccfEpargne = new Account("CCF", "CCF_EPARGNE", "FR7618079442560281578500225", 0.00);
+        accounts.add(ccfEpargne);
+        csvFormatMap.put(ccfEpargne, ccfFormat);
+
+        // BOURSORAMA
+        DecimalFormatSymbols symbolsBourso = new DecimalFormatSymbols(Locale.FRENCH);
+        symbolsBourso.setDecimalSeparator(',');
+        symbolsBourso.setGroupingSeparator(' ');
+        DecimalFormat dfBourso = new DecimalFormat("#,###0.00", symbolsBourso);
+        dfBourso.setParseBigDecimal(true);
+
+        AccountCSVFormat boursoramaFormat = new AccountCSVFormat(0, 1, 2,
+                -1, 6, "yyyy-MM-dd", "yyyy-MM-dd", dfBourso, ";");
+
+        Account boursoCommun = new Account("BOURSORAMA", "BOURSO_COMMUN", "FR7640618802750004090980459", 0.00);
+        accounts.add(boursoCommun);
+        csvFormatMap.put(boursoCommun, boursoramaFormat);
+
+        Account boursoPerso = new Account("BOURSORAMA", "BOURSO_PERSO", "FR7640618803640004092824452", 0.00);
+        accounts.add(boursoPerso);
+        csvFormatMap.put(boursoPerso, boursoramaFormat);
     }
 
     @FXML
@@ -524,10 +556,11 @@ public class MainController implements Initializable {
 
         for (Entry e : entries) {
 
-            Entry initialEntry = e; // Keep a reference to the initial entry for debugging
-
             if (!description.isEmpty() && (forceDescription || e.description().isEmpty())) {
                 e = e.withDescription(description);
+            }
+            else if(!description.isEmpty() && description.startsWith("XXX")){
+                e = e.withDescription("");
             }
             if (category != EntryCategory.ALL) {
                 e = e.withCategory(category);
@@ -535,6 +568,8 @@ public class MainController implements Initializable {
 
             updatedEntries.add(e);
         }
+
+        tfDescriptionSetter.setText("");
 
         allEntries.removeAll(entries);
         allEntries.addAll(updatedEntries);
@@ -585,7 +620,9 @@ public class MainController implements Initializable {
         List<Entry> filteredEntries = entryStream.toList();
         long nbDuplicates = filteredEntries.stream().filter(e -> e.duplicate()).count();
 
+        var currentSortOrder = new ArrayList<>(transactionTable.getSortOrder());
         transactionTable.getItems().setAll(filteredEntries.stream().sorted().toList());
+        transactionTable.getSortOrder().setAll(currentSortOrder);
         statusLabel.setText(String.format("Found %d / %d transactions matching criteria ", filteredEntries.size(), allEntries.size()));
         nbDuplicatesLabel.setText(nbDuplicates == 0 ? "" : String.format("%s are duplicates", nbDuplicates));
 
@@ -655,16 +692,24 @@ public class MainController implements Initializable {
 
                     String label = line[format.labelIndex()].trim();
 
-                    String sDebit = line[format.debitIndex()].trim();
+
                     BigDecimal debit = BigDecimal.ZERO;
-                    if (!sDebit.isEmpty()) {
-                        debit = (BigDecimal) format.decimalFormat().parse(sDebit);
+                    if(format.debitIndex() >= 0) {
+                        String sDebit = line[format.debitIndex()].trim();
+                        if (!sDebit.isEmpty()) {
+                            debit = (BigDecimal) format.decimalFormat().parse(sDebit);
+                        }
                     }
 
+                    // If credit < 0 then set it in debit.
                     String sCredit = line[format.creditIndex()].trim();
                     BigDecimal credit = BigDecimal.ZERO;
                     if (!sCredit.isEmpty()) {
                         credit = (BigDecimal) format.decimalFormat().parse(sCredit);
+                        if(credit.compareTo(BigDecimal.ZERO) < 0){
+                            debit = credit.abs();
+                            credit = BigDecimal.ZERO;
+                        }
                     }
 
                     entries.add(new Entry(account, dateOperation, dateValue, label,
@@ -768,21 +813,6 @@ public class MainController implements Initializable {
                                 TreeMap::new,
                                 Collectors.reducing(BigDecimal.ZERO, Entry::value, BigDecimal::add)))
                 .entrySet().stream().collect(Collectors.toMap(e -> e.getKey().toLabel(), e -> e.getValue()));
-
-        try {
-            Files.writeString(Path.of("c:", "YIE", "tmp", "entriesValues.txt"),
-                    entries.stream()
-                            .map(Entry::value)
-                            .sorted()
-                            .map(Object::toString)
-                            .collect(Collectors.joining("\n")));
-            BigDecimal sum = entries.stream().filter(e -> !e.duplicate()).collect(Collectors.reducing(BigDecimal.ZERO, Entry::value, BigDecimal::add));
-            BigDecimal sum2 = entries.stream().collect(Collectors.reducing(BigDecimal.ZERO, Entry::value, BigDecimal::add));
-            System.out.println("Sans duplicate ****************> " + sum);
-            System.out.println("Avec duplicate ****************> " + sum2);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
 
         displayTotals(collect);
     }
