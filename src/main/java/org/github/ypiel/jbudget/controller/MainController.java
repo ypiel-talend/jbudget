@@ -126,6 +126,8 @@ public class MainController implements Initializable {
     @FXML
     public Label nbDuplicatesLabel;
     @FXML
+    public TextField tfSearchDesc;
+    @FXML
     private TableView<Entry> transactionTable;
     @FXML
     private ComboBox<Account> accountComboBox;
@@ -147,7 +149,7 @@ public class MainController implements Initializable {
     @FXML
     private TableColumn<Entry, BigDecimal> creditColumn;
     @FXML
-    private TableColumn<Entry, EntryCategory> categoryColumn;
+    private TableColumn<Entry, List<EntryCategory>> categoryColumn;
 
     private final List<Entry> allEntries = new ArrayList<>();
     private final Set<Account> accounts = new TreeSet<>();
@@ -423,6 +425,20 @@ public class MainController implements Initializable {
                 cellData -> new ReadOnlyObjectWrapper<>(cellData.getValue().category())
         );
 
+        categoryColumn.setCellFactory(column -> new TableCell<Entry, List<EntryCategory>>() {
+            @Override
+            protected void updateItem(List<EntryCategory> categories, boolean empty) {
+                super.updateItem(categories, empty);
+                if (empty || categories == null || categories.isEmpty()) {
+                    setText(null);
+                } else {
+                    setText(categories.stream()
+                            .map(EntryCategory::toString)
+                            .collect(Collectors.joining(", ")));
+                }
+            }
+        });
+
         // Make description column take remaining space
         descriptionColumn.prefWidthProperty().bind(
                 transactionTable.widthProperty()
@@ -533,13 +549,7 @@ public class MainController implements Initializable {
         updateEntriesInTableView(String.format("Validation of %d transactions", entries.size()));
     }
 
-    @FXML
-    private void handleUpdate() {
-        final String description = tfDescriptionSetter.getText().trim();
-        final boolean forceDescription = cbForceDescription.isSelected();
-        final EntryCategory category = cbCategorySetter.getSelectionModel().getSelectedItem();
-
-        Collection<Entry> updatedEntries = new ArrayList<>();
+    private ObservableList<Entry> entriesToUpdate(final String tooMuchMessage) {
         ObservableList<Entry> entries = transactionTable.getSelectionModel().getSelectedItems();
 
         if (entries.size() <= 0) {
@@ -548,22 +558,52 @@ public class MainController implements Initializable {
         }
 
         if (entries.size() > maxUpdateEntriesWithoutConfirmation) {
-            boolean confirmation = askConfirmation("Confirmation", "You are about to update " + entries.size() + " transactions. Do you want to proceed?");
+            boolean confirmation = askConfirmation("Confirmation", String.format(tooMuchMessage, entries.size()));
             if (!confirmation) {
-                return;
+                return FXCollections.emptyObservableList();
             }
         }
+
+        return entries;
+    }
+
+    @FXML
+    private void handleDeleteCategory() {
+        final EntryCategory category = cbCategorySetter.getSelectionModel().getSelectedItem();
+        ObservableList<Entry> entries = entriesToUpdate("You are about to remove the category '" + category + "' to %s transactions. Do you want to proceed?");
+
+        Collection<Entry> updatedEntries = new ArrayList<>();
+        for(Entry e : entries){
+            if (category != EntryCategory.ALL) {
+                e = e.removeCategory(category);
+            }
+            updatedEntries.add(e);
+        }
+
+        tfDescriptionSetter.setText("");
+        allEntries.removeAll(entries);
+        allEntries.addAll(updatedEntries);
+        handleSearch();
+    }
+
+    @FXML
+    private void handleUpdate() {
+        final String description = tfDescriptionSetter.getText().trim();
+        final boolean forceDescription = cbForceDescription.isSelected();
+        final EntryCategory category = cbCategorySetter.getSelectionModel().getSelectedItem();
+
+        Collection<Entry> updatedEntries = new ArrayList<>();
+        ObservableList<Entry> entries = entriesToUpdate("You are about to update %s transactions. Do you want to proceed?");
 
         for (Entry e : entries) {
 
             if (!description.isEmpty() && (forceDescription || e.description().isEmpty())) {
                 e = e.withDescription(description);
-            }
-            else if(!description.isEmpty() && description.startsWith("XXX")){
+            } else if (!description.isEmpty() && description.startsWith("XXX")) {
                 e = e.withDescription("");
             }
             if (category != EntryCategory.ALL) {
-                e = e.withCategory(category);
+                e = e.addCategory(category);
             }
 
             updatedEntries.add(e);
@@ -579,6 +619,7 @@ public class MainController implements Initializable {
     @FXML
     private void handleSearch() {
         String searchLabel = tfSearchLabel.getText().trim();
+        String searchDesc = tfSearchDesc.getText().trim();
         EntryCategory category = cbCategory.getSelectionModel().getSelectedItem();
         LocalDate fromDate = dpFrom.getValue();
         LocalDate toDate = dpTo.getValue();
@@ -596,8 +637,12 @@ public class MainController implements Initializable {
             entryStream = entryStream.filter(e -> e.label().toLowerCase().contains(searchLabel.toLowerCase()));
         }
 
+        if(!searchDesc.isEmpty()){
+            entryStream = entryStream.filter(e -> e.description().toLowerCase().contains(searchDesc.toLowerCase()));
+        }
+
         if (category != EntryCategory.ALL) {
-            entryStream = entryStream.filter(e -> category == e.category());
+            entryStream = entryStream.filter(e -> e.category().contains(category));
         }
 
         if (cbDateRange.isSelected()) {
@@ -694,7 +739,7 @@ public class MainController implements Initializable {
 
 
                     BigDecimal debit = BigDecimal.ZERO;
-                    if(format.debitIndex() >= 0) {
+                    if (format.debitIndex() >= 0) {
                         String sDebit = line[format.debitIndex()].trim();
                         if (!sDebit.isEmpty()) {
                             debit = (BigDecimal) format.decimalFormat().parse(sDebit);
@@ -706,14 +751,14 @@ public class MainController implements Initializable {
                     BigDecimal credit = BigDecimal.ZERO;
                     if (!sCredit.isEmpty()) {
                         credit = (BigDecimal) format.decimalFormat().parse(sCredit);
-                        if(credit.compareTo(BigDecimal.ZERO) < 0){
+                        if (credit.compareTo(BigDecimal.ZERO) < 0) {
                             debit = credit.abs();
                             credit = BigDecimal.ZERO;
                         }
                     }
 
                     entries.add(new Entry(account, dateOperation, dateValue, label,
-                            "", debit, credit, EntryCategory.MISC, true, false));
+                            "", debit, credit, Collections.emptyList(), true, false));
 
                 } catch (Exception e) {
                     System.err.println("Error parsing line: " + Arrays.toString(line));

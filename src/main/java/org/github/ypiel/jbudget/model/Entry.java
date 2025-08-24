@@ -3,16 +3,19 @@ package org.github.ypiel.jbudget.model;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.stream.Stream;
 
 import static java.math.BigDecimal.ZERO;
 
 public record Entry(Account account, LocalDate dateOperation, LocalDate dateValue, String label, String description,
-                    BigDecimal debit, BigDecimal credit, EntryCategory category,
+                    BigDecimal debit, BigDecimal credit, List<EntryCategory> category,
                     boolean newEntry, boolean duplicate) implements Comparable<Entry> {
 
     public Entry {
         if (category == null) {
-            category = EntryCategory.MISC;
+            category = Collections.emptyList();
         }
 
         if (account == null || dateOperation == null || dateValue == null || label == null || description == null || (debit.compareTo(ZERO) < 0 && credit.compareTo(ZERO) < 0)) {
@@ -23,7 +26,7 @@ public record Entry(Account account, LocalDate dateOperation, LocalDate dateValu
     }
 
     public Entry(Account account, LocalDate dateOperation, LocalDate dateValue, String label, String description,
-                 BigDecimal debit, BigDecimal credit, EntryCategory category) {
+                 BigDecimal debit, BigDecimal credit, List<EntryCategory> category) {
         this(account, dateOperation, dateValue, label, description, debit, credit, category, false, false);
     }
 
@@ -35,8 +38,14 @@ public record Entry(Account account, LocalDate dateOperation, LocalDate dateValu
         return new Entry(account, dateOperation, dateValue, label, newDescription, debit, credit, category, newEntry, duplicate);
     }
 
-    public Entry withCategory(EntryCategory newCategory) {
-        return new Entry(account, dateOperation, dateValue, label, description, debit, credit, newCategory, newEntry, duplicate);
+    public Entry addCategory(EntryCategory newCategory) {
+        List<EntryCategory> categories = Stream.concat(this.category.stream(), Stream.of(newCategory)).toList();
+        return new Entry(account, dateOperation, dateValue, label, description, debit, credit, categories, newEntry, duplicate);
+    }
+
+    public Entry removeCategory(EntryCategory category){
+        List<EntryCategory> categories = this.category.stream().filter(c -> category != EntryCategory.ALL && c != category).toList();
+        return new Entry(account, dateOperation, dateValue, label, description, debit, credit, categories, newEntry, duplicate);
     }
 
     public Entry isDuplicate(){

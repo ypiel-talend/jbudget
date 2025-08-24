@@ -69,6 +69,10 @@
                                 <TextField fx:id="tfSearchLabel"/>
                             </HBox>
                             <HBox spacing="10">
+                                <Label text="Search in description:"/>
+                                <TextField fx:id="tfSearchDesc"/>
+                            </HBox>
+                            <HBox spacing="10">
                                 <Label text="Category:"/>
                                 <ComboBox fx:id="cbCategory" promptText="Select category"/>
                             </HBox>
@@ -99,7 +103,10 @@
                             <ComboBox fx:id="cbCategorySetter" promptText="Select category"/>
                         </HBox>
                         <CheckBox text="Force description:" fx:id="cbForceDescription"/>
-                        <Button text="Update" onAction="#handleUpdate"/>
+                        <HBox>
+                            <Button text="Update" onAction="#handleUpdate"/>
+                            <Button text="Delete Category" onAction="#handleDeleteCategory"/>
+                        </HBox>
                         <Button text="Switch duplicate" onAction="#handleSwitchADuplicate"/>
                         <HBox>
                             <Button text="Delete" onAction="#handleDelete"/>

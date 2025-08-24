@@ -3,6 +3,7 @@ package org.github.ypiel.jbudget.model;
 public enum EntryCategory {
     ALL,
     ACTIVITY,
+    ADOPTION,
     AMAZON,
     BANK_FEES,
     CARE_HEALTH,
@@ -17,9 +18,10 @@ public enum EntryCategory {
     INCOME,
     INVESTMENT_PESO,
     LUNCH_RESTAURANT,
-    MISC,
+    NIJAT,
     OUTINGS_FRIENDS_RESTAURANT,
     PAPA,
+    REMBOURSEMENT_POUR_CAROLE,
     SHARED,
     SNACK_BAKERY,
     SPORT,
@@ -30,6 +32,4 @@ public enum EntryCategory {
     UNDEFINED,
     WITHDRAWAL,
     WORK_FOOD,
-    ADOPTION
-
 }
