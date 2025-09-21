@@ -13,6 +13,8 @@ public enum EntryCategory {
     FAMILY,
     GIFTS,
     GROCERIES_HOUSEHOLD,
+    HEALTH_CARE,
+    HOME_IMPROVEMENT,
     HOME_LOAN,
     HOUSE_WORK,
     INCOME,

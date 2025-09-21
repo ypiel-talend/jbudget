@@ -35,7 +35,6 @@ import javafx.beans.property.SimpleObjectProperty;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
-import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
 import javafx.scene.Cursor;
@@ -127,6 +126,8 @@ public class MainController implements Initializable {
     public Label nbDuplicatesLabel;
     @FXML
     public TextField tfSearchDesc;
+    @FXML
+    public TextField tfSearchAmount;
     @FXML
     private TableView<Entry> transactionTable;
     @FXML
@@ -573,7 +574,7 @@ public class MainController implements Initializable {
         ObservableList<Entry> entries = entriesToUpdate("You are about to remove the category '" + category + "' to %s transactions. Do you want to proceed?");
 
         Collection<Entry> updatedEntries = new ArrayList<>();
-        for(Entry e : entries){
+        for (Entry e : entries) {
             if (category != EntryCategory.ALL) {
                 e = e.removeCategory(category);
             }
@@ -616,10 +617,24 @@ public class MainController implements Initializable {
         handleSearch();
     }
 
+    private BigDecimal getSearchAmount(){
+        String searchAmountStr = tfSearchAmount.getText().trim();
+        if (!searchAmountStr.isEmpty()) {
+            try {
+                return new BigDecimal(searchAmountStr).abs();
+            } catch (Exception e) {
+                showAlert("Error", "Invalid amount: " + tfSearchAmount.getText(), false);
+                return null;
+            }
+        }
+        return null;
+    }
+
     @FXML
     private void handleSearch() {
         String searchLabel = tfSearchLabel.getText().trim();
         String searchDesc = tfSearchDesc.getText().trim();
+        BigDecimal searchAmount = getSearchAmount();
         EntryCategory category = cbCategory.getSelectionModel().getSelectedItem();
         LocalDate fromDate = dpFrom.getValue();
         LocalDate toDate = dpTo.getValue();
@@ -637,12 +652,16 @@ public class MainController implements Initializable {
             entryStream = entryStream.filter(e -> e.label().toLowerCase().contains(searchLabel.toLowerCase()));
         }
 
-        if(!searchDesc.isEmpty()){
+        if (!searchDesc.isEmpty()) {
             entryStream = entryStream.filter(e -> e.description().toLowerCase().contains(searchDesc.toLowerCase()));
         }
 
         if (category != EntryCategory.ALL) {
             entryStream = entryStream.filter(e -> e.category().contains(category));
+        }
+
+        if (searchAmount != null) {
+            entryStream = entryStream.filter(e -> e.value().abs().equals(searchAmount));
         }
 
         if (cbDateRange.isSelected()) {
@@ -732,8 +751,13 @@ public class MainController implements Initializable {
                 try {
                     LocalDate dateOperation = LocalDate.parse(line[format.dateOperationIndex()],
                             DateTimeFormatter.ofPattern(format.dateOperationFormat()));
-                    LocalDate dateValue = LocalDate.parse(line[format.dateValueIndex()],
-                            DateTimeFormatter.ofPattern(format.dateValueFormat()));
+                    LocalDate dateValue = null;
+                    try {
+                        dateValue = LocalDate.parse(line[format.dateValueIndex()],
+                                DateTimeFormatter.ofPattern(format.dateValueFormat()));
+                    } catch (Exception e) {
+                        dateValue = dateOperation;
+                    }
 
                     String label = line[format.labelIndex()].trim();
 
@@ -802,10 +826,6 @@ public class MainController implements Initializable {
         Optional<ButtonType> result = alert.showAndWait();
 
         return result.isPresent() && result.get() == yesButton;
-    }
-
-    public MainController() {
-        super();
     }
 
     public void handleSave() {

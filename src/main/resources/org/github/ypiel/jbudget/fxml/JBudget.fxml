@@ -73,6 +73,10 @@
                                 <TextField fx:id="tfSearchDesc"/>
                             </HBox>
                             <HBox spacing="10">
+                                <Label text="Amount:"/>
+                                <TextField fx:id="tfSearchAmount"/>
+                            </HBox>
+                            <HBox spacing="10">
                                 <Label text="Category:"/>
                                 <ComboBox fx:id="cbCategory" promptText="Select category"/>
                             </HBox>
