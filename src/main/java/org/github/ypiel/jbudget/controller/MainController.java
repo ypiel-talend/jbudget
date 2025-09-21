@@ -76,9 +76,10 @@ public class MainController implements Initializable {
     private static final int maxUpdateEntriesWithoutConfirmation = 5;
     private static final Path OUTPUT_FOLDER = Path.of("C:", "YIE", "tmp", "jbudget", "output");
     private static final Path OUTPUT_FILE = OUTPUT_FOLDER.resolve("jbudget.json");
+    private static final Path ACCOUNTS_FILE = baseDirectory.resolve("accounts.csv");
     private static final double ZOOM_FACTOR = 1.1;
 
-    private static final Account ALL_ACCOUNT = new Account("", "All accounts", "", 0);
+    private static final Account ALL_ACCOUNT = new Account("ALL", "", "All accounts", "", 0);
 
     @FXML
     public TextField tfSearchLabel;
@@ -198,6 +199,10 @@ public class MainController implements Initializable {
                 setText((empty || item == null) ? null : "%.2f".formatted(item));
             }
         });
+    }
+
+    private Optional<Account> getAccountById(String id) {
+        return accounts.stream().filter(a -> a.id().equals(id)).findAny();
     }
 
     public void displayTotals(Map<String, BigDecimal> totalsMap) {
@@ -483,34 +488,53 @@ public class MainController implements Initializable {
         dfCCF.setParseBigDecimal(true);
 
         // Initialize with some default accounts
+        try (CSVReader reader = new CSVReaderBuilder(new FileReader(ACCOUNTS_FILE.toFile()))
+                .withSkipLines(1) // Skip header
+                .withCSVParser(new CSVParserBuilder()
+                        .withSeparator(';')
+                        .build())
+                .build()) {
+            String[] line;
+
+            while ((line = reader.readNext()) != null) {
+                if (line.length >= 5) { // Vérifier qu'il y a assez de colonnes
+                    String id = line[0].trim();
+                    String banque = line[1].trim();
+                    String nomCompte = line[2].trim();
+                    String iban = line[3].trim();
+                    double solde = Double.parseDouble(line[4].trim());
+
+                    Account a = new Account(id, banque, nomCompte, iban, solde);
+                    accounts.add(a);
+                } else {
+                    throw new RuntimeException("Can't read account line: %s from file: %s".formatted(Arrays.toString(line), ACCOUNTS_FILE));
+                }
+            }
+        } catch (IOException | CsvValidationException e) {
+            showAlert("Can't read accounts", "Can't read accounts %s : %S".formatted(ACCOUNTS_FILE, e.getMessage()), true);
+        }
 
 
         // CCF
         AccountCSVFormat ccfFormat = new AccountCSVFormat(0, 1, 2,
                 3, 4, "dd/MM/yyyy", "dd/MM/yyyy", dfCCF, ";");
 
-        Account ccfCheque1Perso = new Account("CCF", "CCF_CHEQUE1_YVES", "FR7618079442560281578504008", 0.00);
-        accounts.add(ccfCheque1Perso);
+        Account ccfCheque1Perso = getAccountById("1").orElseThrow(() -> new RuntimeException("Can't find account by id 1"));
         csvFormatMap.put(ccfCheque1Perso, ccfFormat);
 
-        Account ccfCheque2Commun = new Account("CCF", "CCF_CHEQUE2_COMMUN", "FR7618079442560281577954115", 0.00);
-        accounts.add(ccfCheque2Commun);
+        Account ccfCheque2Commun = getAccountById("2").orElseThrow(() -> new RuntimeException("Can't find account by id 2"));
         csvFormatMap.put(ccfCheque2Commun, ccfFormat);
 
-        Account ccfLivDurableSolidaire = new Account("CCF", "CCF_LIV_DURABLE_SOLIDAIRE", "FR7618079442560281578505851", 0.00);
-        accounts.add(ccfLivDurableSolidaire);
+        Account ccfLivDurableSolidaire = getAccountById("3").orElseThrow(() -> new RuntimeException("Can't find account by id 3"));
         csvFormatMap.put(ccfLivDurableSolidaire, ccfFormat);
 
-        Account ccfLivA = new Account("CCF", "CCF_LIV_A", "FR7618079442560281578500128", 0.00);
-        accounts.add(ccfLivA);
+        Account ccfLivA = getAccountById("4").orElseThrow(() -> new RuntimeException("Can't find account by id 4"));
         csvFormatMap.put(ccfLivA, ccfFormat);
 
-        Account ccfLivEquilibre = new Account("CCF", "CCF_LIV_EQUILIBRE", "FR7618079442560281578500322", 0.00);
-        accounts.add(ccfLivEquilibre);
+        Account ccfLivEquilibre = getAccountById("5").orElseThrow(() -> new RuntimeException("Can't find account by id 4"));
         csvFormatMap.put(ccfLivEquilibre, ccfFormat);
 
-        Account ccfEpargne = new Account("CCF", "CCF_EPARGNE", "FR7618079442560281578500225", 0.00);
-        accounts.add(ccfEpargne);
+        Account ccfEpargne = getAccountById("5").orElseThrow(() -> new RuntimeException("Can't find account by id 5"));
         csvFormatMap.put(ccfEpargne, ccfFormat);
 
         // BOURSORAMA
@@ -523,12 +547,10 @@ public class MainController implements Initializable {
         AccountCSVFormat boursoramaFormat = new AccountCSVFormat(0, 1, 2,
                 -1, 6, "yyyy-MM-dd", "yyyy-MM-dd", dfBourso, ";");
 
-        Account boursoCommun = new Account("BOURSORAMA", "BOURSO_COMMUN", "FR7640618802750004090980459", 0.00);
-        accounts.add(boursoCommun);
+        Account boursoCommun = getAccountById("6").orElseThrow(() -> new RuntimeException("Can't find account by id 6"));
         csvFormatMap.put(boursoCommun, boursoramaFormat);
 
-        Account boursoPerso = new Account("BOURSORAMA", "BOURSO_PERSO", "FR7640618803640004092824452", 0.00);
-        accounts.add(boursoPerso);
+        Account boursoPerso = getAccountById("7").orElseThrow(() -> new RuntimeException("Can't find account by id 7"));
         csvFormatMap.put(boursoPerso, boursoramaFormat);
     }
 
@@ -617,7 +639,7 @@ public class MainController implements Initializable {
         handleSearch();
     }
 
-    private BigDecimal getSearchAmount(){
+    private BigDecimal getSearchAmount() {
         String searchAmountStr = tfSearchAmount.getText().trim();
         if (!searchAmountStr.isEmpty()) {
             try {
@@ -848,13 +870,13 @@ public class MainController implements Initializable {
                 Files.writeString(OUTPUT_FILE, "[]", StandardOpenOption.CREATE_NEW);
             }
 
-            Map<Account, Account> accountMap = accounts.stream()
-                    .collect(Collectors.toMap(e -> e, e -> e));
-
             List<Entry> entries = EntryJsonController.loadEntriesFromFile(OUTPUT_FILE.toFile().getAbsolutePath());
             allEntries.clear();
             allEntries.addAll(entries.stream()
-                    .map(e -> e.withAccount(accountMap.get(e.account())).isNotNew()).sorted().toList()); // Only 1 instance for each account
+                    .map(e -> e.withAccount(
+                                    accounts.stream().filter(c -> c.compareTo(e.account()) == 0).findAny().orElseThrow(() -> new RuntimeException("Can't find account for entry: " + e))
+                            )
+                            .isNotNew()).sorted().toList()); // Only 1 instance for each account
             updateEntriesInTableView(String.format("Loaded %d transactions from file %s",
                     allEntries.size(), OUTPUT_FILE));
         } catch (IOException e) {

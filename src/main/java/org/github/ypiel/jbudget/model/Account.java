@@ -1,8 +1,11 @@
 package org.github.ypiel.jbudget.model;
 
-public record Account(String bank, String name, String code, double initialBalance) implements Comparable<Account> {
+public record Account(String id, String bank, String name, String code, double initialBalance) implements Comparable<Account> {
 
     public Account {
+        if (id == null) {
+            throw new IllegalArgumentException("Id cannot be null");
+        }
         if (bank == null) {
             throw new IllegalArgumentException("Bank cannot be null");
         }
