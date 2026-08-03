@@ -9,7 +9,7 @@
   <url>http://maven.apache.org</url>
 
   <properties>
-    <lombok.version>1.18.34</lombok.version>
+    <lombok.version>1.18.46</lombok.version>
     <log4j.version>2.23.1</log4j.version>
     <javafx.version>21</javafx.version>
     <controlsfx.version>11.2.1</controlsfx.version>

@@ -107,7 +107,10 @@
                                         <CheckBox fx:id="cbOnlyNew" text="Only new entries"/>
                                         <CheckBox fx:id="cbOnlyDuplicates" text="Only duplicates"/>
                                     </HBox>
-                                    <Button text="Search" onAction="#handleSearch"/>
+                                    <HBox>
+                                        <Button text="Search" onAction="#handleSearch"/>
+                                        <Button text="Export" onAction="#handleExport"/>
+                                    </HBox>
                                 </VBox>
                                 <Separator orientation="HORIZONTAL" minHeight="25"/>
                                 <VBox>
