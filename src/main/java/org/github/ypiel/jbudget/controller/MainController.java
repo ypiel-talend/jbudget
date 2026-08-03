@@ -75,6 +75,7 @@ public class MainController implements Initializable {
     private static final Path baseDirectory = Path.of("C:", "YIE", "tmp", "jbudget");
     private static final int maxUpdateEntriesWithoutConfirmation = 5;
     private static final Path OUTPUT_FOLDER = Path.of("C:", "YIE", "tmp", "jbudget", "output");
+    private static final Path EXPORT_FOLDER = Path.of("C:", "YIE", "tmp", "jbudget", "export");
     private static final Path OUTPUT_FILE = OUTPUT_FOLDER.resolve("jbudget.json");
     private static final Path ACCOUNTS_FILE = baseDirectory.resolve("accounts.csv");
     private static final double ZOOM_FACTOR = 1.1;
@@ -531,10 +532,10 @@ public class MainController implements Initializable {
         Account ccfLivA = getAccountById("4").orElseThrow(() -> new RuntimeException("Can't find account by id 4"));
         csvFormatMap.put(ccfLivA, ccfFormat);
 
-        Account ccfLivEquilibre = getAccountById("5").orElseThrow(() -> new RuntimeException("Can't find account by id 4"));
+        Account ccfLivEquilibre = getAccountById("5").orElseThrow(() -> new RuntimeException("Can't find account by id 5"));
         csvFormatMap.put(ccfLivEquilibre, ccfFormat);
 
-        Account ccfEpargne = getAccountById("5").orElseThrow(() -> new RuntimeException("Can't find account by id 5"));
+        Account ccfEpargne = getAccountById("6").orElseThrow(() -> new RuntimeException("Can't find account by id 6"));
         csvFormatMap.put(ccfEpargne, ccfFormat);
 
         // BOURSORAMA
@@ -547,10 +548,10 @@ public class MainController implements Initializable {
         AccountCSVFormat boursoramaFormat = new AccountCSVFormat(0, 1, 2,
                 -1, 6, "yyyy-MM-dd", "yyyy-MM-dd", dfBourso, ";");
 
-        Account boursoCommun = getAccountById("6").orElseThrow(() -> new RuntimeException("Can't find account by id 6"));
+        Account boursoCommun = getAccountById("7").orElseThrow(() -> new RuntimeException("Can't find account by id 7"));
         csvFormatMap.put(boursoCommun, boursoramaFormat);
 
-        Account boursoPerso = getAccountById("7").orElseThrow(() -> new RuntimeException("Can't find account by id 7"));
+        Account boursoPerso = getAccountById("8").orElseThrow(() -> new RuntimeException("Can't find account by id 8"));
         csvFormatMap.put(boursoPerso, boursoramaFormat);
     }
 
@@ -650,6 +651,38 @@ public class MainController implements Initializable {
             }
         }
         return null;
+    }
+
+    @FXML
+    private void handleExport() {
+        var entries = new ArrayList<>(transactionTable.getItems());
+        if (entries.isEmpty()) {
+            showAlert("Warning", "No entries to export.");
+            return;
+        }
+
+        Path exportFile = EXPORT_FOLDER.resolve("export_" + LocalDate.now() + ".csv");
+        try {
+            Files.createDirectories(EXPORT_FOLDER);
+            StringBuilder sb = new StringBuilder("\uFEFF"); // Start with BOM for UTF-8
+            sb.append("Account;DateOperation;DateValue;Label;Description;Debit;Credit;Categories\n");
+            for (Entry e : entries) {
+                sb.append(String.join(";",
+                        e.account().toLabel(),
+                        e.dateOperation().toString(),
+                        e.dateValue() != null ? e.dateValue().toString() : "",
+                        e.label().replace(";", ","),
+                        e.description().replace(";", ","),
+                        e.debit().compareTo(BigDecimal.ZERO) != 0 ? e.debit().toPlainString() : "",
+                        e.credit().compareTo(BigDecimal.ZERO) != 0 ? e.credit().toPlainString() : "",
+                        e.category().stream().map(EntryCategory::toString).collect(Collectors.joining(","))
+                )).append("\n");
+            }
+            Files.writeString(exportFile, sb.toString(), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+            statusLabel.setText(String.format("Exported %d entries to %s", entries.size(), exportFile));
+        } catch (IOException ex) {
+            showAlert("Error", "Failed to export: " + ex.getMessage());
+        }
     }
 
     @FXML

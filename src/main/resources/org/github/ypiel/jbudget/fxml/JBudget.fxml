@@ -20,6 +20,7 @@
 <?import javafx.scene.chart.NumberAxis?>
 
 <?import javafx.scene.control.ScrollPane?>
+<?import javafx.scene.control.SplitPane?>
 <?import javafx.scene.layout.Pane?>
 <TabPane xmlns="http://javafx.com/javafx/8.0.171" xmlns:fx="http://javafx.com/fxml/1"
          fx:controller="org.github.ypiel.jbudget.controller.MainController">
@@ -48,7 +49,11 @@
                     <Label fx:id="nbDuplicatesLabel" style="-fx-font-style: italic; -fx-text-fill: red;"/>
                 </VBox>
 
-                <TableView fx:id="transactionTable">
+                <SplitPane orientation="VERTICAL" dividerPositions="0.6" VBox.vgrow="ALWAYS">
+                    <items>
+                        <!-- Top: Transaction table -->
+                        <VBox>
+                            <TableView fx:id="transactionTable" VBox.vgrow="ALWAYS">
                     <columns>
                         <TableColumn fx:id="accountColumn" text="Account" prefWidth="150"/>
                         <TableColumn fx:id="dateOperationColumn" text="Date Operation"/>
@@ -60,8 +65,14 @@
                         <TableColumn fx:id="descriptionColumn" text="Description"/>
                     </columns>
                 </TableView>
+                        </VBox>
 
-                <VBox>
+                        <!-- Bottom: Search, update controls and totals -->
+                        <ScrollPane fitToWidth="true" fitToHeight="true">
+                            <VBox spacing="10">
+                                <padding>
+                                    <Insets top="5" right="5" bottom="5" left="5"/>
+                                </padding>
                     <VBox>
                         <HBox spacing="20">
                             <HBox spacing="10">
@@ -96,7 +107,10 @@
                             <CheckBox fx:id="cbOnlyNew" text="Only new entries"/>
                             <CheckBox fx:id="cbOnlyDuplicates" text="Only duplicates"/>
                         </HBox>
+                                    <HBox>
                         <Button text="Search" onAction="#handleSearch"/>
+                                        <Button text="Export" onAction="#handleExport"/>
+                                    </HBox>
                     </VBox>
                     <Separator orientation="HORIZONTAL" minHeight="25"/>
                     <VBox>
@@ -122,13 +136,16 @@
                         <Button text="load" onAction="#loadFromJson"/>
                         <Button text="Save" onAction="#handleSave"/>
                     </HBox>
-                </VBox>
                 <Separator orientation="HORIZONTAL" minHeight="25"/>
                 <TableView fx:id="totalTable">
                     <columns>
                         <TableColumn fx:id="accountTotalColumn" text="Account" prefWidth="350"/>
                         <TableColumn fx:id="totalColumn" text="Date Operation"/>
                     </columns>
+                                </TableView>
+                            </VBox>
+                        </ScrollPane>
+                    </items>
                 </TableView>
             </VBox>
         </Tab>
